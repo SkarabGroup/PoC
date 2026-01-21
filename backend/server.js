@@ -1,51 +1,48 @@
+require('dotenv').config();
 const express = require('express');
-const app = express();
+const { spawn } = require('child_process'); //to spawn python process by running a command
+const path = require('path');
 
-app.use(express.json());
+const app = express();
+app.use(express.json()); //to know how to read json data from request body
 
 app.post('/analyze', (req, res) => {
     const { repoUrl } = req.body;
 
-    console.log(`[Mock Server] Ricevuta richiesta di analisi per: ${repoUrl}`);
+    // Paths: use the python from the venv and the absolute path of the script
+    const pythonPath = path.join(__dirname, '../venv/bin/python'); //to use python from the virtual environment
+    const scriptPath = path.join(__dirname, '../agents/orchestrator.py'); //absolute path of the script
 
-    if (!repoUrl) {
-        return res.status(400).json({ error: "URL della repository mancante" });
-    }
+    console.log(`[Node] Starting Python process for: ${repoUrl}`);
+    // Actual command execution: python orchestrator.py [url]
+    const pyProcess = spawn(pythonPath, [scriptPath, repoUrl]); //spawn a new child process to run the python script
 
-    console.log("[Mock Server] Qui si chiamano gli agenti Python (simulato)...");
+    let stdoutData = "";
+    let stderrData = "";
 
-    const mockResponse = {
-        //mock della risposta JSON dell'orchestratore
-        orchestrator_status: "success",
-        agent_results: {
-            reviewer: {
-                status: "success",
-                repo_analyzed: repoUrl,
-                folder_found: "Documentazione/",
-                files_checked: ["README.md", "introduzione.txt"],
-                typos_found: [
-                    {
-                        file: "README.md",
-                        word: "tecnolofie",
-                        suggestion: "tecnologie",
-                        line: 5
-                    }
-                ]
-            }
-        },
-        summary: "MOCK: Analisi completata con successo."
-    };
+    // Reads the data that the orchestrator prints (the final JSON)
+    pyProcess.stdout.on('data', (data) => {
+        stdoutData += data.toString();
+    });
 
-    console.log("[Mock Server] Analisi completata. Invio risposta.");
-    
-    res.json(mockResponse);
+    // Reads any debug logs or errors
+    pyProcess.stderr.on('data', (data) => {
+        stderrData += data.toString();
+        console.log(`[Python Log]: ${data.toString().trim()}`); //log stderr data for debugging
+    });
 
+    pyProcess.on('close', (code) => {
+        if (code !== 0) {
+            return res.status(500).json({ error: "Python error", details: stderrData });
+        }
+
+        try {
+            const finalResult = JSON.parse(stdoutData);
+            res.json(finalResult);
+        } catch (e) {
+            res.status(500).json({ error: "Error parsing JSON from Python", raw: stdoutData });
+        }
+    });
 });
 
-const PORT = 3000;
-app.listen(PORT, () => {
-    console.log(`
-    MOCK SERVER ATTIVO
-    Endpoint: http://localhost:${PORT}/analyze
-    Questo server NON chiama Python. Restituisce dati statici per test`);
-});
+app.listen(3000, () => console.log('Server listening on port 3000'));
