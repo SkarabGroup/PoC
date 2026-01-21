@@ -1,1 +1,12 @@
+# Python virtual environment
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Node dependencies
+node_modules/
+dist/
+
+# Environment variables
 .env
