@@ -1,48 +1,66 @@
 require('dotenv').config();
 const express = require('express');
-const { spawn } = require('child_process'); //to spawn python process by running a command
+const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
-app.use(express.json()); //to know how to read json data from request body
+app.use(express.json());
 
-app.post('/analyze', (req, res) => {
+// create a base temporary path for cloned repositories
+const BASE_TEMP_PATH = path.resolve(__dirname, '../tempCloned');
+
+// Ensure the "tempCloned" folder exists at server startup
+if (!fs.existsSync(BASE_TEMP_PATH)) {
+    fs.mkdirSync(BASE_TEMP_PATH, { recursive: true });
+}
+
+app.post('/analyze', async (req, res) => {
     const { repoUrl } = req.body;
+    
+    // SETUP: creation of a unique subfolder inside ../tempCloned
+    const analysisId = uuidv4();
+    const tempDir = path.join(BASE_TEMP_PATH, `repo-${analysisId}`);
 
-    // Paths: use the python from the venv and the absolute path of the script
-    const pythonPath = path.join(__dirname, '../venv/bin/python'); //to use python from the virtual environment
-    const scriptPath = path.join(__dirname, '../agents/orchestrator.py'); //absolute path of the script
+    try {
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+        console.log(`[Node] Setup: Folder created at ${tempDir}`);
 
-    console.log(`[Node] Starting Python process for: ${repoUrl}`);
-    // Actual command execution: python orchestrator.py [url]
-    const pyProcess = spawn(pythonPath, [scriptPath, repoUrl]); //spawn a new child process to run the python script
+        const pythonPath = path.join(__dirname, '../venv/bin/python');
+        const scriptPath = path.join(__dirname, '../agents/orchestrator.py');
 
-    let stdoutData = "";
-    let stderrData = "";
+        // EXECUTION: Launch the orchestrator
+        const pyProcess = spawn(pythonPath, [scriptPath, repoUrl, tempDir]);
 
-    // Reads the data that the orchestrator prints (the final JSON)
-    pyProcess.stdout.on('data', (data) => {
-        stdoutData += data.toString();
-    });
+        let stdoutData = "";
+        let stderrData = "";
 
-    // Reads any debug logs or errors
-    pyProcess.stderr.on('data', (data) => {
-        stderrData += data.toString();
-        console.log(`[Python Log]: ${data.toString().trim()}`); //log stderr data for debugging
-    });
+        pyProcess.stdout.on('data', (data) => { stdoutData += data.toString(); });
+        pyProcess.stderr.on('data', (data) => { stderrData += data.toString(); });
 
-    pyProcess.on('close', (code) => {
-        if (code !== 0) {
-            return res.status(500).json({ error: "Python error", details: stderrData });
-        }
+        pyProcess.on('close', (code) => {
+            // CLEANUP: deletion of the temporary folder
+            if (fs.existsSync(tempDir)) {
+                fs.rmSync(tempDir, { recursive: true, force: true });
+                console.log(`[Node] Cleanup: Folder ${tempDir} deleted`);
+            }
 
-        try {
-            const finalResult = JSON.parse(stdoutData);
-            res.json(finalResult);
-        } catch (e) {
-            res.status(500).json({ error: "Error parsing JSON from Python", raw: stdoutData });
-        }
-    });
+            if (code !== 0) {
+                return res.status(500).json({ error: "Orchestrator failed", details: stderrData });
+            }
+
+            try {
+                const finalResult = JSON.parse(stdoutData);
+                res.json(finalResult);
+            } catch (parseError) {
+                res.status(500).json({ error: "JSON Parse Error", raw: stdoutData });
+            }
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: "Internal Server Error", message: err.message });
+    }
 });
 
 app.listen(3000, () => console.log('Server listening on port 3000'));
