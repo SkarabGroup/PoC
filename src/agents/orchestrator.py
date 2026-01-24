@@ -39,7 +39,7 @@ def main():
             aws_secret_access_key=aws_secret_key,
             aws_session_token=aws_session_token # Pass it even if it's None, boto3 handles it
         )
-        prompt = f"You are an orchestrator. The repo {repo_url} has been cloned in {temp_path}. Analyze it."
+        prompt = f"You are an orchestrator. The repo {repo_url} has been cloned in {temp_path}. Searc the .txt files and check if they are spell correct. Provide a JSON output with the structure: {{'status': 'completed', 'output': '<spell_checked_texts>'}} where <spell_checked_texts> is a summary of the spell-checked texts."
 
         response = bedrock.converse(
             modelId=os.getenv('ORCHESTRATOR_BEDROCK_MODEL_ID'),
