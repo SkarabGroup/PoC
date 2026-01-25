@@ -19,6 +19,7 @@ class SpellAgent:
         self.bedrock = bedrock_client
         self.model_id = model_id
     
+    
     def get_tool_definitions(self) -> List[Dict[str, Any]]:
         """
         Define the tools available for the agent.

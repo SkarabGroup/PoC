@@ -37,7 +37,7 @@ app.post('/analyze', async (req: Request<{}, {}, AnalyzeRequest>, res: Response)
         }
         console.log(`[Node] Setup: Folder created at ${tempDir}`);
 
-        const pythonPath = path.join(__dirname, '../../venv/bin/python');
+        const pythonPath = path.join(__dirname, '../venv/bin/python');
         const scriptPath = path.join(__dirname, '../agents/orchestrator.py');
 
         // EXECUTION: Launch the orchestrator
