@@ -1,0 +1,13 @@
+src/backend/
+node_modules/
+
+**/__pycache__/
+**/*.pyc
+
+venv/
+.env/
+
+tempCloned/
+.git/
+*.log
+.DS_Store
