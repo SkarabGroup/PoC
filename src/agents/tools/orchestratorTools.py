@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import sys
 
 def cloneRepository(repo_url, target_dir):
     """
