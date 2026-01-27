@@ -36,3 +36,18 @@ pip install -r requirements.txt
 
 = .env
 In .env.example é espressa la struttura del .env
+
+3. Installare pymongo
+```bash
+pip install pymongo
+```
+
+4. Avviare MongoDB
+localmente
+```bash
+sudo systemctl start mongodb (su ubuntu/debian)
+```
+con docker
+```bash
+docker run -d -p 27017:27017 --name mongodb mongo:latest 
+```

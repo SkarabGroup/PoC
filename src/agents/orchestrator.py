@@ -6,6 +6,7 @@ from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from tools.orchestratorTools import cloneRepository
 from spellAgent import SpellAgent
+from database.mongodb_manager import MongoDBManager
 
 def main():
     load_dotenv()
@@ -17,6 +18,9 @@ def main():
     
     repo_url = sys.argv[1]
     temp_path = sys.argv[2]  
+
+    #inzializza mongo
+    mongo = MongoDBManager()
 
     # Clone repository
     cloned = cloneRepository(repo_url, temp_path)
@@ -110,6 +114,22 @@ def main():
                 "full_results": spell_result
             }
         }
+
+        # *** SAVE TO MONGODB ***
+        run_id = mongo.save_orchestrator_run(repo_url, result)
+        print(f"Results saved to MongoDB with run_id: {run_id}", file=sys.stderr)
+        
+        # Save individual tool executions for audit trail
+        for tool_exec in spell_result.get("tool_executions", []):
+            mongo.save_tool_execution(
+                run_id=run_id,
+                tool_name=tool_exec.get("tool"),
+                tool_input=tool_exec.get("input"),
+                result=tool_exec.get("result")
+            )
+        
+        # Add MongoDB ID to output
+        result['mongodb_run_id'] = run_id
         
         print(json.dumps(result, indent=2))
 
@@ -124,6 +144,8 @@ def main():
         import traceback
         traceback.print_exc(file=sys.stderr)
         sys.exit(1)
+    finally: 
+        mongo.close()
 
 if __name__ == "__main__":
     main()
