@@ -1,151 +1,92 @@
 import sys
 import os
 import json
-import boto3
-from botocore.exceptions import ClientError
 from dotenv import load_dotenv
+from strands import Agent, tool # Assumendo l'uso del decorator @tool di Strands
 from tools.orchestratorTools import cloneRepository
 from spellAgent import SpellAgent
-from database.mongodb_manager import MongoDBManager
+#from database.mongodb_manager import MongoDBManager
+
+
+@tool
+def clone_repo_tool(repo_url: str, temp_path: str) -> str:
+    """
+    Clones a GitHub repository into a local temporary folder.
+    Returns a success or error message.
+    """
+    success = cloneRepository(repo_url, temp_path)
+    if success:
+        return f"Repository {repo_url} cloned successfully to {temp_path}."
+    else:
+        return f"Error: Failed to clone repository {repo_url}."
+
+@tool
+def analyze_spelling_tool(temp_path: str) -> str:
+    """
+    Starts the specialized SpellAgent to analyze files in the specified path.
+    Returns the spelling analysis results in JSON format.
+    """
+    spell_agent = SpellAgent()
+    result = spell_agent.check_spelling(temp_path)
+    return json.dumps(result)
+
+# --- MAIN ORCHESTRATOR LOGIC ---
 
 def main():
     load_dotenv()
+    
+   
+    
+    if not os.getenv("AGENT_MODEL_ID"):
+        print("ERROR: AGENT_MODEL_ID not found in .env", file=sys.stderr)
+        sys.exit(1)
 
     if len(sys.argv) < 3:
-        print(f"ERROR: Insufficient arguments.", file=sys.stderr)
-        print(f"Usage: python3 orchestrator.py <repo_url> <temp_path>", file=sys.stderr)
+        print("Usage: python3 orchestrator.py <repo_url> <temp_path>", file=sys.stderr)
         sys.exit(1)
     
     repo_url = sys.argv[1]
-    temp_path = sys.argv[2]  
+    temp_path = sys.argv[2]
+    #mongo = MongoDBManager()
 
-    #inzializza mongo
-    mongo = MongoDBManager()
-
-    # Clone repository
-    cloned = cloneRepository(repo_url, temp_path)
-    if not cloned:
-        print(f"CRITICAL ERROR: Failed to clone repository {repo_url}", file=sys.stderr)
-        sys.exit(1)
-
-    # CLIENT INITIALIZATION
     try:
-        aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
-        aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-        aws_session_token = os.getenv('AWS_SESSION_TOKEN')
-        region = os.getenv('AWS_REGION', 'eu-central-1')
-        model_id = os.getenv('ORCHESTRATOR_BEDROCK_MODEL_ID')
-        
-        if not model_id:
-            raise ValueError("ORCHESTRATOR_BEDROCK_MODEL_ID must be set in environment variables")
-        
-        # Initialize Bedrock Runtime client
-        bedrock = boto3.client(
-            service_name='bedrock-runtime',
-            region_name=region,
-            aws_access_key_id=aws_access_key,
-            aws_secret_access_key=aws_secret_key,
-            aws_session_token=aws_session_token
+        # 1. Initialization of the Orchestrator with Tools
+        orchestrator = Agent(
+            model=os.getenv("AGENT_MODEL_ID"), # Example: "gpt-4" (ensure this is set in your environment)
+            tools=[clone_repo_tool, analyze_spelling_tool],
+            system_prompt="""You are a Senior Software Architect. 
+            Your task is:
+            1. Clone the repository using clone_repo_tool.
+            2. Analyze the spelling using analyze_spelling_tool on the cloned path.
+            3. Produce a structured final report."""
         )
 
-        # Initialize SpellAgent with tool calling
-        print("Initializing SpellAgent with tool calling...", file=sys.stderr)
-        spell_agent = SpellAgent(bedrock, model_id)
+        print(f"Orchestrator starting task for: {repo_url}...", file=sys.stderr)
+
+        # 2. Autonomous Execution
+        task_description = f"Analyze the repository {repo_url} saving it in {temp_path}. Tell me how many errors you found."
+        response = orchestrator(task_description) 
         
-        # Call SpellAgent to analyze the cloned repository
-        # The LLM will autonomously decide which tools to use
-        print(f"Starting spell check analysis on {temp_path}...", file=sys.stderr)
-        spell_result = spell_agent.check_spelling(temp_path)
-        print(f"Spell check completed in {spell_result.get('iterations', 0)} iterations.", file=sys.stderr)
+        final_output = response.last_message
 
-        # Prepare orchestrator prompt with spell agent results
-        prompt = f"""You are an orchestrator managing code analysis tasks.
-                
-        Repository: {repo_url}
-        Cloned to: {temp_path}
-
-        The SpellAgent has autonomously analyzed the repository using tool calling.
-        
-        Analysis Results:
-        {json.dumps(spell_result, indent=2)}
-
-        Provide a comprehensive summary of the spell-checking results in JSON format with this structure:
-        {{
-            "status": "completed",
-            "repository": "{repo_url}",
-            "total_files_analyzed": <number>,
-            "total_errors_found": <number>,
-            "summary": "<overall_summary>",
-            "details": "<detailed_findings>"
-        }}"""
-
-        # Call orchestrator model for final summary
-        print("Generating final summary...", file=sys.stderr)
-        response = bedrock.converse(
-            modelId=model_id,
-            messages=[{"role": "user", "content": [{"text": prompt}]}]
-        )
-
-        orchestrator_output = response['output']['message']['content'][0]['text']
-        
-        # Try to parse as JSON, otherwise keep as text
-        try:
-            if '```json' in orchestrator_output:
-                orchestrator_output = orchestrator_output.split('```json')[1].split('```')[0].strip()
-            elif '```' in orchestrator_output:
-                orchestrator_output = orchestrator_output.split('```')[1].split('```')[0].strip()
-            
-            orchestrator_summary = json.loads(orchestrator_output)
-        except json.JSONDecodeError:
-            orchestrator_summary = {
-                "status": "completed",
-                "summary": orchestrator_output
-            }
-
-        # Emit final JSON to stdout
-        result = {
-            "status": "completed",
+        # 3. Saving to MongoDB (Persistence Layer)
+        # Retrieve the history of tool calls for the audit trail
+        run_data = {
             "repository": repo_url,
-            "orchestrator_summary": orchestrator_summary,
-            "spell_agent_details": {
-                "status": spell_result.get("status"),
-                "iterations": spell_result.get("iterations"),
-                "tools_used": len(spell_result.get("tool_executions", [])),
-                "full_results": spell_result
-            }
+            "final_report": final_output,
+            "tool_calls": response.history # Strands usually keeps track of the steps
         }
+        
+        #run_id = mongo.save_orchestrator_run(repo_url, run_data)
+        #print(f"Process completed. RunID: {run_id}")
+        print("-" * 30)
+        print(final_output)
 
-        # *** SAVE TO MONGODB ***
-        run_id = mongo.save_orchestrator_run(repo_url, result)
-        print(f"Results saved to MongoDB with run_id: {run_id}", file=sys.stderr)
-        
-        # Save individual tool executions for audit trail
-        for tool_exec in spell_result.get("tool_executions", []):
-            mongo.save_tool_execution(
-                run_id=run_id,
-                tool_name=tool_exec.get("tool"),
-                tool_input=tool_exec.get("input"),
-                result=tool_exec.get("result")
-            )
-        
-        # Add MongoDB ID to output
-        result['mongodb_run_id'] = run_id
-        
-        print(json.dumps(result, indent=2))
-
-    except ValueError as ve:
-        print(f"CONFIGURATION ERROR: {str(ve)}", file=sys.stderr)
-        sys.exit(1)
-    except ClientError as ce:
-        print(f"AWS CLIENT ERROR: {str(ce)}", file=sys.stderr)
-        sys.exit(1)
     except Exception as e:
         print(f"CRITICAL ERROR: {str(e)}", file=sys.stderr)
-        import traceback
-        traceback.print_exc(file=sys.stderr)
         sys.exit(1)
-    finally: 
-        mongo.close()
+    finally:
+        pass#mongo.close()
 
 if __name__ == "__main__":
     main()

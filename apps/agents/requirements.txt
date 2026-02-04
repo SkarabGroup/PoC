@@ -11,3 +11,6 @@ smmap==5.0.2
 urllib3==2.6.3
 pyspellchecker
 python-dotenv==1.2.1
+strands-agents 
+strands-agents-tools
+pymongo==4.4.0
