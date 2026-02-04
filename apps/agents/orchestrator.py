@@ -2,33 +2,10 @@ import sys
 import os
 import json
 from dotenv import load_dotenv
-from strands import Agent, tool 
-from tools.orchestratorTools import cloneRepository
-from spellAgent import SpellAgent
+from strands import Agent
+from tools.orchestratorTools import *
 #from database.mongodb_manager import MongoDBManager
 
-
-@tool
-def clone_repo_tool(repo_url: str, temp_path: str) -> str:
-    """
-    Clones a GitHub repository into a local temporary folder.
-    Returns a success or error message.
-    """
-    success = cloneRepository(repo_url, temp_path)
-    if success:
-        return f"Repository {repo_url} cloned successfully to {temp_path}."
-    else:
-        return f"Error: Failed to clone repository {repo_url}."
-
-@tool
-def analyze_spelling_tool(temp_path: str) -> str:
-    """
-    Starts the specialized SpellAgent to analyze files in the specified path.
-    Returns the spelling analysis results in JSON format.
-    """
-    spell_agent = SpellAgent()
-    result = spell_agent.check_spelling(temp_path)
-    return json.dumps(result)
 
 # --- MAIN ORCHESTRATOR LOGIC ---
 
@@ -67,22 +44,25 @@ def main():
         task_description = f"Analyze the repository {repo_url} saving it in {temp_path}. Tell me how many errors you found."
         response = orchestrator(task_description) 
         
-        final_output = response.output_text
+        final_output = response.message
 
+        # Convert to string if dict
+        if isinstance(final_output, dict):
+            final_output = json.dumps(final_output, indent=2)
         
+        print("final output:\n" + str(final_output))
 
         # 3. Saving to MongoDB (Persistence Layer)
         # Retrieve the history of tool calls for the audit trail
         run_data = {
             "repository": repo_url,
-            "final_report": final_output,
-            "tool_calls": response.history # Strands usually keeps track of the steps
+            "final_report": final_output
         }
         
         #run_id = mongo.save_orchestrator_run(repo_url, run_data)
         #print(f"Process completed. RunID: {run_id}")
         print("-" * 30)
-        print(final_output)
+
 
     except Exception as e:
         print(f"CRITICAL ERROR: {str(e)}", file=sys.stderr)
