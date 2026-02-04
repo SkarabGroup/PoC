@@ -56,3 +56,21 @@ da eseguire nel terminale della cartella agenti:
 ```bash
 docker build -t analyzer-agent -f Dockerfile.agents .
 ```
+
+curl per testare se va il db tramite server
+```bash
+curl -X POST http://localhost:3000/analysis \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repoURL": "https://github.com/octocat/Hello-World",
+    "email": "test-user@example.com"
+  }'
+```
+
+per testare il db aprire 3 shcede terminale:
+nella prima avviare il docker di mongo con il comando sopra.
+nella seconda entrare nella cartella server e avviare il server con il comando
+```bash
+npm run stard:dev
+```
+nella terza inseire il comando curl, se è andato stampa un json orrendo
