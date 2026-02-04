@@ -4,6 +4,8 @@ import sys
 from strands import tool
 from spellAgent import SpellAgent
 import json
+from git import Repo
+
 
 @tool
 def clone_repo_tool(repo_url: str, temp_path: str) -> str:
@@ -12,23 +14,14 @@ def clone_repo_tool(repo_url: str, temp_path: str) -> str:
     Returns a success or error message.
     """
     try:
-        # 1. Create the target directory (if it doesn't exist)
-        os.makedirs(temp_path, exist_ok=True)
-        
-        # 2. Create the "Documentation" subfolder
-        doc_path = os.path.join(temp_path, "Documentation")
-        os.makedirs(doc_path, exist_ok=True)
-        
-        # 3. Create the "test.txt" file inside "Documentation"
-        file_path = os.path.join(doc_path, "test.txt")
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write("This is a test file geeeeenerated by the mock agent.\n")
-            f.write(f"Simulatted repository: {repo_url}")
-        print(f"DEBUG: [MOCK] Structure successfully created in {temp_path}", file=sys.stderr)
-        return f"Repository {repo_url} cloned successfully to {temp_path}."
+        repo_name = repo_url.split("/")[-1].replace(".git", "")
+        clone_path = Path(temp_path) / repo_name
+
+        Repo.clone_from(repo_url, clone_path)
+        return f"Successfully cloned repository to {clone_path}."
 
     except Exception as e:
-        return f"Error: Failed to clone repository {repo_url}."
+        return f"Error: Failed to clone repository {repo_url}. {str(e)}"
 
 
 @tool

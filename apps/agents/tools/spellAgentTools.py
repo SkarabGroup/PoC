@@ -73,7 +73,7 @@ def analyze_spelling(file_path: str, content: str) -> dict:
         spell = SpellChecker(language='en')                                                 #------------------------------------------------#CAN BE PARAMETERIZED
         words = re.findall(r'\b\w+\b', content.lower())
         
-        misspelled = spell.unknown(words)
+        misspelled = spell.unknown(words) 
         
 
         errors = []
