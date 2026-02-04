@@ -1,39 +1,40 @@
 # PoC
 Repository specifica per il codice del PoC per il progetto code guardian
 
-1. Installare le dipendenze backend e avviare il server 
-Aprire una scheda del terminale
-Da PoC/
+API:
 ```bash
-cd src/backend
-npm install uuid express dotenv
-npx ts-node server.ts
+cd apps/api && npm run start:dev
+curl -X GET http://localhost:3000/health
 ```
-Da Terminale dovrebbe comparire il messaggio
+
+Test:
 ```bash
-Server listening on port 3000
+curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"repoURL": "https://github.com/Poian3k/TeXeneratorGUI"}'
 ```
-Tenerla attiva per tutta la esecuzione
-
-2. Installare le dipendenze python
-Aprendo una nuova scheda del terminale
-Da PoC/
+Dovrebbe restituire:
 ```bash
-cd src/agents
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r ../../requirements.txt
+
 ```
-= Librerie da installare
-== backend
-dotenv express (.env ==> express.env)
 
-= Comandi per settare l'ambiente virtuale
+Provare anche:
+```bash
+curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"repoURL": "https://github.com/bimbumbam/bambumbim"}'
+curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{}'
+```
 
-python3 -m venv venv 
-source venv/bin/activate
-pip install -r requirements.txt
+Se tutto funziona:
+```bash
+cd infra/compose
+docker compose up -d
+```
 
+Se genera un errore legato alle credenziali:
+```bash
+nano ~/.docker/config.json
+```
+e rimuovere la riga:
+```bash
+"credsStore": "desktop"
 = .env
 In .env.example é espressa la struttura del .env
 
