@@ -4,10 +4,10 @@ RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY src/agents/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/agents/ ./agents/
+COPY . ./agents/
 
 RUN mkdir -p /app/tempCloned
 ENV PYTHONPATH=/app/agents

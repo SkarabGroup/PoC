@@ -1,4 +1,4 @@
-import { IsUrl, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsUrl, IsOptional, IsEmail } from 'class-validator';
 
 export class AnalysisRequestDTO {
     @IsNotEmpty({ message : "Deve essere fornito un URL"})
@@ -7,4 +7,8 @@ export class AnalysisRequestDTO {
         { message : "L'URL fornito non è valido" }
     )
     repoURL: string;
+
+    @IsNotEmpty({message: "deve essere fornita una e-mail"})
+    @IsEmail()
+    email?: string; 
 }

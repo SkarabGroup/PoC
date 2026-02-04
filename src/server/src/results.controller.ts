@@ -1,19 +1,45 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { OrchestratorRun } from './orchestrator-run.schema';
+import { User } from './user.schema';
+import { Project } from './project.schema';
 
 @Controller('api/results')
 export class ResultsController {
   constructor(
     @InjectModel(OrchestratorRun.name)
     private runModel: Model<OrchestratorRun>,
+    @InjectModel(User.name)
+    private userModel: Model<User>,
+    @InjectModel(Project.name)
+    private projectModel: Model<Project>,
   ) {}
 
-  // GET /api/results - tutti i risultati
+  // GET /api/results - tutti i risultati (con filtri opzionali)
   @Get()
-  async getAllResults() {
-    return this.runModel.find().sort({ createdAt: -1 }).limit(50).exec();
+  async getAllResults(
+    @Query('userId') userId?: string,
+    @Query('projectId') projectId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const query: any = {};
+
+    if (userId) {
+      query.userId = userId;
+    }
+
+    if (projectId) {
+      query.projectId = projectId;
+    }
+
+    const limitNum = limit ? parseInt(limit) : 50;
+
+    return this.runModel
+      .find(query)
+      .sort({ createdAt: -1 })
+      .limit(limitNum)
+      .exec();
   }
 
   // GET /api/results/:id - risultato specifico
@@ -22,24 +48,23 @@ export class ResultsController {
     return this.runModel.findById(id).exec();
   }
 
-  // GET /api/results/stats - statistiche
-  @Get('stats/summary')
-  async getStats() {
-    const total = await this.runModel.countDocuments();
-    const results = await this.runModel.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalErrors: { $sum: '$orchestrator_summary.total_errors_found' },
-          totalFiles: { $sum: '$orchestrator_summary.total_files_analyzed' },
-        },
-      },
-    ]);
+  // GET /api/results/user/:userId - risultati per utente
+  @Get('user/:userId')
+  async getResultsByUser(@Param('userId') userId: string) {
+    return this.runModel
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .exec();
+  }
 
-    return {
-      totalRuns: total,
-      totalErrors: results[0]?.totalErrors || 0,
-      totalFiles: results[0]?.totalFiles || 0,
-    };
+  // GET /api/results/project/:projectId - risultati per progetto
+  @Get('project/:projectId')
+  async getResultsByProject(@Param('projectId') projectId: string) {
+    return this.runModel
+      .find({ projectId })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .exec();
   }
 }

@@ -3,15 +3,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-<<<<<<< HEAD
 import { AnalysisModule } from './analysis/analysis.module';
-
-@Module({
-  imports: [AnalysisModule],
-  controllers: [AppController],
-=======
 import { ResultsController } from './results.controller';
+import { UsersController } from './user.controller';
+import { ProjectsController } from './project.controller';
 import { OrchestratorRun, OrchestratorRunSchema } from './orchestrator-run.schema';
+import { User, UserSchema } from './user.schema';
+import { Project, ProjectSchema } from './project.schema';
 
 @Module({
   imports: [
@@ -33,13 +31,19 @@ import { OrchestratorRun, OrchestratorRunSchema } from './orchestrator-run.schem
     // Schema per leggere i dati
     MongooseModule.forFeature([
       { name: OrchestratorRun.name, schema: OrchestratorRunSchema },
+      { name: User.name, schema: UserSchema },
+      { name: Project.name, schema: ProjectSchema },
     ]),
+
+    // Modulo Analysis (dal branch HEAD)
+    AnalysisModule,
   ],
   controllers: [
     AppController,
-    ResultsController, // ← Nuovo controller
+    ResultsController,
+    UsersController,
+    ProjectsController,
   ],
->>>>>>> database
   providers: [AppService],
 })
 export class AppModule {}

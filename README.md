@@ -52,3 +52,7 @@ con docker
 ```bash
 docker run -d -p 27017:27017 --name mongodb mongo:latest 
 ```
+da eseguire nel terminale della cartella agenti: 
+```bash
+docker build -t analyzer-agent -f Dockerfile.agents .
+```

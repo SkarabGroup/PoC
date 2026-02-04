@@ -19,6 +19,13 @@ export class OrchestratorRun {
 
   @Prop({ type: Object })
   metadata: any;
+
+  // NUOVO: per integrare con utenti e progetti
+  @Prop({ required: false })
+  userId?: string;
+
+  @Prop({ required: false })
+  projectId?: string;
 }
 
-export const OrchestratorRunSchema = SchemaFactory.createForClass(OrchestratorRun);
+export const OrchestratorRunSchema =  SchemaFactory.createForClass(OrchestratorRun);

@@ -9,7 +9,8 @@ export class AnalysisController {
     @Post()
     async run(@Body() body : AnalysisRequestDTO) : Promise<AnalysisResult> {
         try {
-            return await this.analysisService.runAnalysis(body.repoURL);
+            const userEmail = body.email || 'unknown@user.com';
+            return await this.analysisService.runAnalysis(body.repoURL, userEmail);
         } catch(error) {
             throw new HttpException(
                 error.message || 'Errore durante l\'analisi',
