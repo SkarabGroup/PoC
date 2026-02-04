@@ -2,7 +2,7 @@ import sys
 import os
 import json
 from dotenv import load_dotenv
-from strands import Agent, tool # Assumendo l'uso del decorator @tool di Strands
+from strands import Agent, tool 
 from tools.orchestratorTools import cloneRepository
 from spellAgent import SpellAgent
 #from database.mongodb_manager import MongoDBManager
@@ -58,7 +58,7 @@ def main():
             Your task is:
             1. Clone the repository using clone_repo_tool.
             2. Analyze the spelling using analyze_spelling_tool on the cloned path.
-            3. Produce a structured final report."""
+            3. Produce a JSON structured json final report."""
         )
 
         print(f"Orchestrator starting task for: {repo_url}...", file=sys.stderr)
@@ -67,7 +67,9 @@ def main():
         task_description = f"Analyze the repository {repo_url} saving it in {temp_path}. Tell me how many errors you found."
         response = orchestrator(task_description) 
         
-        final_output = response.last_message
+        final_output = response.output_text
+
+        
 
         # 3. Saving to MongoDB (Persistence Layer)
         # Retrieve the history of tool calls for the audit trail

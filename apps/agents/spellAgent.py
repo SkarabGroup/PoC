@@ -131,7 +131,7 @@ class SpellAgent:
                 1. Find all .txt files in the directory
                 2. Read each file's content
                 3. Analyze each file for spelling errors
-                4. Provide a comprehensive summary
+                4. Provide a comprehensive json summary
 
                 Use the available tools to complete this task."""
 
@@ -141,22 +141,21 @@ class SpellAgent:
            
             response = self.agent(prompt)
             
-            final_message = response.last_message
-            
+            final_message = response.output_text 
+
             tool_executions = []
             iterations = 0
-            
-            # Strands provides access to the execution trace so we can extract tool usage details
-            if hasattr(response, 'trace'):
-                for event in response.trace:
-                    if event.get('type') == 'tool_use':
-                        tool_executions.append({
-                            "tool": event.get('tool_name'),
-                            "input": event.get('input'),
-                            "result": event.get('output')
-                        })
-                    if event.get('type') == 'iteration':
-                        iterations += 1
+
+            for event in getattr(response, "trace", []):
+                if event.get("type") == "tool_use":
+                    tool_executions.append({
+                        "tool": event.get("tool_name"),
+                        "input": event.get("input"),
+                        "result": event.get("output")
+                    })
+                if event.get("type") == "iteration":
+                    iterations += 1
+
             
             return {
                 "status": "completed",
