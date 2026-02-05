@@ -1,4 +1,4 @@
-from tools.spellAgentTools import find_text_files, read_file_content, analyze_spelling
+from tools.spellAgentTools import *
 from strands import Agent, tool
 from typing import Dict, Any
 import os
@@ -19,7 +19,7 @@ class SpellAgent:
         """
         inference_profile_id = os.getenv("AGENT_MODEL_ID") 
         # Create the agent with the tools
-        self.agent = Agent(tools=[find_text_files, read_file_content, analyze_spelling], model=os.getenv("AGENT_MODEL_ID"))
+        self.agent = Agent(tools=[find_docs_files, read_file_content, analyze_spelling], model=os.getenv("AGENT_MODEL_ID"))
     
     def check_spelling(self, directory: str) -> Dict[str, Any]:
         """
@@ -32,10 +32,10 @@ class SpellAgent:
         Returns:
             Complete analysis results
         """
-        prompt = f"""You are a spell-checking agent. Your task is to check spelling in all .txt files in the directory: {directory}
+        prompt = f"""You are a spell-checking agent. Your task is to check spelling in all document files in the directory: {directory}
 
                 Please follow these steps:
-                1. Find all .txt files in the directory
+                1. Find all document files in the directory
                 2. Read each file's content
                 3. Analyze each file for spelling errors
                 4. Provide a comprehensive json summary

@@ -50,7 +50,8 @@ def main():
         if isinstance(final_output, dict):
             final_output = json.dumps(final_output, indent=2)
         
-        print("final output:\n" + str(final_output))
+        print("final output:\n")
+        print(final_output)
 
         # 3. Saving to MongoDB (Persistence Layer)
         # Retrieve the history of tool calls for the audit trail
