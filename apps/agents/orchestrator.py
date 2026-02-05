@@ -44,14 +44,22 @@ def main():
         task_description = f"Analyze the repository {repo_url} saving it in {temp_path}. Tell me how many errors you found."
         response = orchestrator(task_description) 
         
-        final_output = response.message
+        raw_message = response.message
 
-        # Convert to string if dict
-        if isinstance(final_output, dict):
-            final_output = json.dumps(final_output, indent=2)
-        
+        # Extract inner text from the response
+        #{
+        #"role": "assistant",
+        #"content": [
+        #    {
+        #    "text": ...
+        #    }
+        # ]
+        #}
+        inner_text = raw_message["content"][0]["text"]
+        final_output = json.loads(inner_text)
+
         print("final output:\n")
-        print(final_output)
+        print(json.dumps(final_output, indent=2))
 
         # 3. Saving to MongoDB (Persistence Layer)
         # Retrieve the history of tool calls for the audit trail

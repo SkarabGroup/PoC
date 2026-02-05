@@ -64,6 +64,7 @@ def read_file_content(file_path: str) -> Dict[str, Any]:
             "error": f"Error reading file: {str(e)}"
         }
 
+
 @tool
 def analyze_spelling(filepath: str, permitted: set = None) -> list:
     """
@@ -72,7 +73,6 @@ def analyze_spelling(filepath: str, permitted: set = None) -> list:
     Args:
         filepath: Path of the file to check
         permitted: Set of words to ignore during spell checking
-
         
     Returns:
         list of misspelled words
@@ -81,8 +81,6 @@ def analyze_spelling(filepath: str, permitted: set = None) -> list:
         ValueError: If the file extension is not supported
         FileNotFoundError: If the file does not exist
     """
-    import os
-    
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"The file {filepath} does not exist")
     
@@ -92,18 +90,18 @@ def analyze_spelling(filepath: str, permitted: set = None) -> list:
     if extension == '.typ':
         return check_typ(filepath, permitted)
     elif extension == '.md':
-        return {}
+        return check_md(filepath, permitted)
     elif extension == '.tex':
-        return {}
+        return check_tex(filepath, permitted)
     elif extension == '.txt':
-        return {}
+        return check_txt(filepath, permitted)
     else:
         raise ValueError(f"Extension {extension} not supported. Use .typ, .md, .tex, or .txt")
 
 
 def clean_word(word: str) -> str:
     """
-    Clean a single word by removing Typst formatting markers.
+    Clean a single word by removing formatting markers.
     
     Args:
         word: Word to clean
@@ -123,8 +121,8 @@ def clean_word(word: str) -> str:
     return word
 
 
-def check_typ(filepath: str, permitted: set = None) -> list:
-    """Convert a Typst (.typ) file to a clean string."""
+def check_typ(filepath: str, permitted: set = None, language: str = 'en') -> list:
+    """Check spelling in a Typst (.typ) file."""
     with open(filepath, 'r', encoding='utf-8') as f:
         original_content = f.read()
 
@@ -155,12 +153,11 @@ def check_typ(filepath: str, permitted: set = None) -> list:
     
     # 2. Extract words to check
     raw_words = []
-    for match in re.finditer(r'\b\w+\b', original_content): #find all WORDS
+    for match in re.finditer(r'\b\w+\b', original_content):
         word = match.group(0)
         position = match.start()
         
         # Check if this word is in a position to ignore
-        # (i.e., inside a value after a Typst keyword)
         in_ignored_position = any(
             start <= position < end 
             for start, end in positions_to_ignore
@@ -173,34 +170,195 @@ def check_typ(filepath: str, permitted: set = None) -> list:
     # 3. Apply regex cleaning to each word
     words_to_check = []
     for word in raw_words:
-        # Clean the word (remove formatting markers)
         cleaned_word = clean_word(word).lower()
         
-        # Skip if empty after cleaning
         if not cleaned_word:
             continue
         
-        # Skip if in permitted set
         if cleaned_word in permitted:
             continue
         
-        # Skip pure numbers
         if cleaned_word.isdigit():
             continue
         
-        # Skip measurement units (e.g., 5cm, 10px)
         if re.match(r'^\d+[a-z]+$', cleaned_word):
-            continue
-        
-        # Skip very short words (optional)
-        if len(cleaned_word) < 2:
             continue
         
         words_to_check.append(cleaned_word)
     
     # 4. Spell checking
-    spell = SpellChecker(language='en')
+    spell = SpellChecker(language=language)
     return spell.unknown(words_to_check)
 
 
+def check_md(filepath: str, permitted: set = None, language: str = 'en') -> list:
+    """Check spelling in a Markdown (.md) file."""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        original_content = f.read()
 
+    if permitted is None:
+        permitted = set()
+
+    positions_to_ignore = []
+    
+    # Ignore code blocks (``` ... ```)
+    for match in re.finditer(r'```.*?```', original_content, re.DOTALL):
+        positions_to_ignore.append((match.start(), match.end()))
+    
+    # Ignore inline code (`...`)
+    for match in re.finditer(r'`[^`]+`', original_content):
+        positions_to_ignore.append((match.start(), match.end()))
+    
+    # Ignore URLs
+    for match in re.finditer(r'https?://[^\s\)]+', original_content):
+        positions_to_ignore.append((match.start(), match.end()))
+    
+    # Ignore image paths ![alt](path)
+    for match in re.finditer(r'!\[.*?\]\(.*?\)', original_content):
+        positions_to_ignore.append((match.start(), match.end()))
+    
+    # Ignore link URLs [text](url)
+    for match in re.finditer(r'\[.*?\]\((.*?)\)', original_content):
+        positions_to_ignore.append((match.start(1), match.end(1)))
+    
+    # Extract words to check
+    raw_words = []
+    for match in re.finditer(r'\b\w+\b', original_content):
+        word = match.group(0)
+        position = match.start()
+        
+        in_ignored_position = any(
+            start <= position < end 
+            for start, end in positions_to_ignore
+        )
+        
+        if not in_ignored_position and word.lower() not in permitted:
+            raw_words.append(word)
+    
+    # Clean and filter words
+    words_to_check = []
+    for word in raw_words:
+        cleaned_word = clean_word(word).lower()
+        
+        if not cleaned_word:
+            continue
+        
+        if cleaned_word in permitted:
+            continue
+        
+        if cleaned_word.isdigit():
+            continue
+        
+        if re.match(r'^\d+[a-z]+$', cleaned_word):
+            continue
+        
+        words_to_check.append(cleaned_word)
+    
+    # Spell checking
+    spell = SpellChecker(language=language)
+    return spell.unknown(words_to_check)
+
+
+def check_tex(filepath: str, permitted: set = None, language: str = 'en') -> list:
+    """Check spelling in a LaTeX (.tex) file."""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        original_content = f.read()
+
+    if permitted is None:
+        permitted = set()
+
+    positions_to_ignore = []
+    
+    # Ignore LaTeX commands (\command{...} or \command)
+    for match in re.finditer(r'\\[a-zA-Z]+(\{[^}]*\})?', original_content):
+        positions_to_ignore.append((match.start(), match.end()))
+    
+    # Ignore comments (% ...)
+    for match in re.finditer(r'%.*?$', original_content, re.MULTILINE):
+        positions_to_ignore.append((match.start(), match.end()))
+    
+    # Ignore math mode ($ ... $ or $$ ... $$)
+    for match in re.finditer(r'\$\$?.*?\$\$?', original_content, re.DOTALL):
+        positions_to_ignore.append((match.start(), match.end()))
+    
+    # Ignore environments that typically contain code/math
+    for match in re.finditer(r'\\begin\{(equation|align|verbatim|lstlisting)\}.*?\\end\{\1\}', original_content, re.DOTALL):
+        positions_to_ignore.append((match.start(), match.end()))
+    
+    # Extract words to check
+    raw_words = []
+    for match in re.finditer(r'\b\w+\b', original_content):
+        word = match.group(0)
+        position = match.start()
+        
+        in_ignored_position = any(
+            start <= position < end 
+            for start, end in positions_to_ignore
+        )
+        
+        if not in_ignored_position and word.lower() not in permitted:
+            raw_words.append(word)
+    
+    # Clean and filter words
+    words_to_check = []
+    for word in raw_words:
+        cleaned_word = clean_word(word).lower()
+        
+        if not cleaned_word:
+            continue
+        
+        if cleaned_word in permitted:
+            continue
+        
+        if cleaned_word.isdigit():
+            continue
+        
+        if re.match(r'^\d+[a-z]+$', cleaned_word):
+            continue
+        
+        words_to_check.append(cleaned_word)
+    
+    # Spell checking
+    spell = SpellChecker(language=language)
+    return spell.unknown(words_to_check)
+
+
+def check_txt(filepath: str, permitted: set = None, language: str = 'en') -> list:
+    """Check spelling in a plain text (.txt) file."""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        original_content = f.read()
+
+    if permitted is None:
+        permitted = set()
+
+    # For plain text, we don't ignore any positions (no special syntax)
+    # Extract all words
+    raw_words = []
+    for match in re.finditer(r'\b\w+\b', original_content):
+        word = match.group(0)
+        
+        if word.lower() not in permitted:
+            raw_words.append(word)
+    
+    # Clean and filter words
+    words_to_check = []
+    for word in raw_words:
+        cleaned_word = clean_word(word).lower()
+        
+        if not cleaned_word:
+            continue
+        
+        if cleaned_word in permitted:
+            continue
+        
+        if cleaned_word.isdigit():
+            continue
+        
+        if re.match(r'^\d+[a-z]+$', cleaned_word):
+            continue
+        
+        words_to_check.append(cleaned_word)
+    
+    # Spell checking
+    spell = SpellChecker(language=language)
+    return spell.unknown(words_to_check)
