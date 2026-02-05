@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Any
 from strands import Agent, tool
-from spellchecker import SpellChecker
+import enchant
 import re
 
 
@@ -64,15 +64,20 @@ def read_file_content(file_path: str) -> Dict[str, Any]:
             "error": f"Error reading file: {str(e)}"
         }
 
+import re
+import os
+import enchant
+
 
 @tool
-def analyze_spelling(filepath: str, permitted: set = None) -> list:
+def analyze_spelling(filepath: str, permitted: set = None, language: str = 'en_US') -> list:
     """
     Checks the spelling of words in a file.
     
     Args:
         filepath: Path of the file to check
         permitted: Set of words to ignore during spell checking
+        language: Language code for spell checking (default: 'en_US')
         
     Returns:
         list of misspelled words
@@ -88,13 +93,13 @@ def analyze_spelling(filepath: str, permitted: set = None) -> list:
     extension = extension.lower()
     
     if extension == '.typ':
-        return check_typ(filepath, permitted)
+        return check_typ(filepath, permitted, language)
     elif extension == '.md':
-        return check_md(filepath, permitted)
+        return check_md(filepath, permitted, language)
     elif extension == '.tex':
-        return check_tex(filepath, permitted)
+        return check_tex(filepath, permitted, language)
     elif extension == '.txt':
-        return check_txt(filepath, permitted)
+        return check_txt(filepath, permitted, language)
     else:
         raise ValueError(f"Extension {extension} not supported. Use .typ, .md, .tex, or .txt")
 
@@ -121,7 +126,7 @@ def clean_word(word: str) -> str:
     return word
 
 
-def check_typ(filepath: str, permitted: set = None, language: str = 'en') -> list:
+def check_typ(filepath: str, permitted: set = None, language: str = 'en_US') -> list:
     """Check spelling in a Typst (.typ) file."""
     with open(filepath, 'r', encoding='utf-8') as f:
         original_content = f.read()
@@ -186,12 +191,16 @@ def check_typ(filepath: str, permitted: set = None, language: str = 'en') -> lis
         
         words_to_check.append(cleaned_word)
     
-    # 4. Spell checking
-    spell = SpellChecker(language=language)
-    return spell.unknown(words_to_check)
+    # 4. Spell checking with enchant
+    try:
+        spell = enchant.Dict(language)
+        misspelled = [word for word in words_to_check if not spell.check(word)]
+        return list(set(misspelled))  # Remove duplicates
+    except enchant.errors.DictNotFoundError:
+        raise ValueError(f"Dictionary for language '{language}' not found. Try 'en_US', 'en_GB', 'it_IT', etc.")
 
 
-def check_md(filepath: str, permitted: set = None, language: str = 'en') -> list:
+def check_md(filepath: str, permitted: set = None, language: str = 'en_US') -> list:
     """Check spelling in a Markdown (.md) file."""
     with open(filepath, 'r', encoding='utf-8') as f:
         original_content = f.read()
@@ -254,12 +263,16 @@ def check_md(filepath: str, permitted: set = None, language: str = 'en') -> list
         
         words_to_check.append(cleaned_word)
     
-    # Spell checking
-    spell = SpellChecker(language=language)
-    return spell.unknown(words_to_check)
+    # Spell checking with enchant
+    try:
+        spell = enchant.Dict(language)
+        misspelled = [word for word in words_to_check if not spell.check(word)]
+        return list(set(misspelled))
+    except enchant.errors.DictNotFoundError:
+        raise ValueError(f"Dictionary for language '{language}' not found. Try 'en_US', 'en_GB', 'it_IT', etc.")
 
 
-def check_tex(filepath: str, permitted: set = None, language: str = 'en') -> list:
+def check_tex(filepath: str, permitted: set = None, language: str = 'en_US') -> list:
     """Check spelling in a LaTeX (.tex) file."""
     with open(filepath, 'r', encoding='utf-8') as f:
         original_content = f.read()
@@ -318,12 +331,16 @@ def check_tex(filepath: str, permitted: set = None, language: str = 'en') -> lis
         
         words_to_check.append(cleaned_word)
     
-    # Spell checking
-    spell = SpellChecker(language=language)
-    return spell.unknown(words_to_check)
+    # Spell checking with enchant
+    try:
+        spell = enchant.Dict(language)
+        misspelled = [word for word in words_to_check if not spell.check(word)]
+        return list(set(misspelled))
+    except enchant.errors.DictNotFoundError:
+        raise ValueError(f"Dictionary for language '{language}' not found. Try 'en_US', 'en_GB', 'it_IT', etc.")
 
 
-def check_txt(filepath: str, permitted: set = None, language: str = 'en') -> list:
+def check_txt(filepath: str, permitted: set = None, language: str = 'en_US') -> list:
     """Check spelling in a plain text (.txt) file."""
     with open(filepath, 'r', encoding='utf-8') as f:
         original_content = f.read()
@@ -359,6 +376,10 @@ def check_txt(filepath: str, permitted: set = None, language: str = 'en') -> lis
         
         words_to_check.append(cleaned_word)
     
-    # Spell checking
-    spell = SpellChecker(language=language)
-    return spell.unknown(words_to_check)
+    # Spell checking with enchant
+    try:
+        spell = enchant.Dict(language)
+        misspelled = [word for word in words_to_check if not spell.check(word)]
+        return list(set(misspelled))
+    except enchant.errors.DictNotFoundError:
+        raise ValueError(f"Dictionary for language '{language}' not found. Try 'en_US', 'en_GB', 'it_IT', etc.")
