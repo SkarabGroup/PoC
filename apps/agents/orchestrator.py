@@ -1,83 +1,134 @@
 import sys
 import os
 import json
+import time
 from dotenv import load_dotenv
 from strands import Agent
 from tools.orchestratorTools import *
-#from database.mongodb_manager import MongoDBManager
-
-
-# --- MAIN ORCHESTRATOR LOGIC ---
 
 def main():
-    load_dotenv()
+    # Start timer
+    start_time = time.time()
     
-   
+    load_dotenv()
     
     if not os.getenv("AGENT_MODEL_ID"):
         print("ERROR: AGENT_MODEL_ID not found in .env", file=sys.stderr)
         sys.exit(1)
 
     if len(sys.argv) < 3:
-        print("Usage: python3 orchestrator.py <repo_url> <temp_path>", file=sys.stderr)
+        print("Usage: python3 orchestrator.py <repo_url> <temp_path> [permitted_words] [languages]", file=sys.stderr)
         sys.exit(1)
     
     repo_url = sys.argv[1]
     temp_path = sys.argv[2]
-    #mongo = MongoDBManager()
+    permitted_words = sys.argv[3] if len(sys.argv) > 3 else ""
+    languages = sys.argv[4].split(",") if len(sys.argv) > 4 else ["it_IT", "en_US"]
+
+    print(f"[Timer] Process started at {time.strftime('%Y-%m-%d %H:%M:%S')}", file=sys.stderr)
+    print(f"Repository: {repo_url}", file=sys.stderr)
+    print(f"Permitted words: {permitted_words}", file=sys.stderr)
+    print(f"Languages: {', '.join(languages)}", file=sys.stderr)
+    print("-" * 50, file=sys.stderr)
 
     try:
         # 1. Initialization of the Orchestrator with Tools
+        init_start = time.time()
         orchestrator = Agent(
-            model=os.getenv("AGENT_MODEL_ID"), # Example: "gpt-4" (ensure this is set in your environment)
+            model=os.getenv("AGENT_MODEL_ID"),
             tools=[clone_repo_tool, analyze_spelling_tool],
             system_prompt="""You are a Senior Software Architect. 
             Your task is:
             1. Clone the repository using clone_repo_tool.
-            2. Analyze the spelling using analyze_spelling_tool on the cloned path by using ["it","en_US"] as languages.
-            3. Return the results in a structured JSON format."""
+            2. Analyze the spelling using analyze_spelling_tool on the cloned path by using the specified languages.
+            3. Return the results ONLY as a valid JSON object with this structure:
+            {
+              "spelling_analysis": [...],
+              "summary": {
+                "total_files": number,
+                "total_errors": number
+              }
+            }
+            DO NOT include any explanatory text before or after the JSON."""
         )
-
-        print(f"Orchestrator starting task for: {repo_url}...", file=sys.stderr)
+        init_time = time.time() - init_start
+        print(f"[Timer] Orchestrator initialized in {init_time:.2f}s", file=sys.stderr)
 
         # 2. Autonomous Execution
-        task_description = f"Analyze the repository {repo_url} saving it in {temp_path}. Tell me how many errors you found"
-        response = orchestrator(task_description) 
-        
-        raw_message = response.message
+        exec_start = time.time()
+        print(f"Orchestrator starting task for: {repo_url}...", file=sys.stderr)
 
+        task_description = f"""Analyze the repository {repo_url} saving it in {temp_path}. 
+        Use permitted words: {permitted_words} and languages: {languages}.
+        Return ONLY a valid JSON object, no other text."""
+        
+        response = orchestrator(task_description)
+        
+        exec_time = time.time() - exec_start
+        print(f"[Timer] Task execution completed in {exec_time:.2f}s", file=sys.stderr)
+        
         # Extract inner text from the response
-        #{
-        #"role": "assistant",
-        #"content": [
-        #    {
-        #    "text": ...
-        #    }
-        # ]
-        #}
+        parse_start = time.time()
+        raw_message = response.message
         inner_text = raw_message["content"][0]["text"]
-        final_output = json.loads(inner_text)
-
-        print("final output:\n")
-        print(json.dumps(final_output, indent=2))
-
-        # 3. Saving to MongoDB (Persistence Layer)
-        # Retrieve the history of tool calls for the audit trail
-        run_data = {
-            "repository": repo_url,
-            "final_report": final_output
-        }
         
-        #run_id = mongo.save_orchestrator_run(repo_url, run_data)
-        #print(f"Process completed. RunID: {run_id}")
-        print("-" * 30)
+        # Try to extract JSON from the text (in case there's extra text)
+        try:
+            # Try parsing as-is first
+            final_output = json.loads(inner_text)
+        except json.JSONDecodeError:
+            # If that fails, try to find JSON in the text
+            import re
+            json_match = re.search(r'\{.*\}', inner_text, re.DOTALL)
+            if json_match:
+                final_output = json.loads(json_match.group())
+            else:
+                # If still no JSON, create a fallback structure
+                print(f"[Warning] Could not parse JSON. Raw output:", file=sys.stderr)
+                print(inner_text, file=sys.stderr)
+                final_output = {
+                    "error": "Failed to parse agent output as JSON",
+                    "raw_output": inner_text
+                }
+        
+        parse_time = time.time() - parse_start
+        print(f"[Timer] Response parsed in {parse_time:.2f}s", file=sys.stderr)
 
+        # Add timing information to the output
+        total_time = time.time() - start_time
+        final_output_with_timing = {
+            **final_output,
+            "execution_metrics": {
+                "total_time_seconds": round(total_time, 2),
+                "initialization_time_seconds": round(init_time, 2),
+                "execution_time_seconds": round(exec_time, 2),
+                "parsing_time_seconds": round(parse_time, 2),
+                "started_at": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time)),
+                "completed_at": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+            }
+        }
+
+        print("\n" + "=" * 50)
+        print("FINAL OUTPUT:")
+        print("=" * 50)
+        print(json.dumps(final_output_with_timing, indent=2))
+        print("=" * 50)
 
     except Exception as e:
+        elapsed = time.time() - start_time
+        print(f"\n[Timer] FAILED after {elapsed:.2f}s", file=sys.stderr)
         print(f"CRITICAL ERROR: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
         sys.exit(1)
     finally:
-        pass#mongo.close()
+        # Calculate total execution time
+        total_time = time.time() - start_time
+        minutes, seconds = divmod(total_time, 60)
+        
+        print("\n" + "=" * 50, file=sys.stderr)
+        print(f"[Timer] TOTAL EXECUTION TIME: {int(minutes)}m {seconds:.2f}s ({total_time:.2f}s)", file=sys.stderr)
+        print("=" * 50, file=sys.stderr)
 
 if __name__ == "__main__":
     main()
