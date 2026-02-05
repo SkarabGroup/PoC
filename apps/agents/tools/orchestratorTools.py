@@ -25,11 +25,18 @@ def clone_repo_tool(repo_url: str, temp_path: str) -> str:
 
 
 @tool
-def analyze_spelling_tool(temp_path: str) -> str:
+def analyze_spelling_tool(temp_path: str, permitted: set = None, languages: list = None) -> str:
     """
-    Starts the specialized SpellAgent to analyze files in the specified path.
+    Starts the specialized SpellAgent to analyze files in the specified path for spelling errors.
+    It supports specifying permitted words to ignore and multiple languages for spell checking.
     Returns the spelling analysis results in JSON format.
     """
+    if languages is None:
+        languages = ['en_US']
+    if permitted is None:
+        permitted = set()
+    
     spell_agent = SpellAgent()
-    result = spell_agent.check_spelling(temp_path)
+    result = spell_agent.check_spelling(temp_path, permitted=permitted, languages=languages)
+    return json.dumps(result)
     return json.dumps(result)

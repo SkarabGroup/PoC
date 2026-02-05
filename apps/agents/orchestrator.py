@@ -34,14 +34,14 @@ def main():
             system_prompt="""You are a Senior Software Architect. 
             Your task is:
             1. Clone the repository using clone_repo_tool.
-            2. Analyze the spelling using analyze_spelling_tool on the cloned path.
-            3. Produce a JSON structured json final report."""
+            2. Analyze the spelling using analyze_spelling_tool on the cloned path by using ["it","en_US"] as languages.
+            3. Return the results in a structured JSON format."""
         )
 
         print(f"Orchestrator starting task for: {repo_url}...", file=sys.stderr)
 
         # 2. Autonomous Execution
-        task_description = f"Analyze the repository {repo_url} saving it in {temp_path}. Tell me how many errors you found."
+        task_description = f"Analyze the repository {repo_url} saving it in {temp_path}. Tell me how many errors you found"
         response = orchestrator(task_description) 
         
         raw_message = response.message

@@ -19,26 +19,35 @@ class SpellAgent:
         """
         inference_profile_id = os.getenv("AGENT_MODEL_ID") 
         # Create the agent with the tools
-        self.agent = Agent(tools=[find_docs_files, read_file_content, analyze_spelling], model=os.getenv("AGENT_MODEL_ID"))
+        self.agent = Agent(tools=[find_docs_files,  analyze_spelling], model=os.getenv("AGENT_MODEL_ID"))
     
-    def check_spelling(self, directory: str) -> Dict[str, Any]:
+    def check_spelling(self, directory: str, permitted: set = None, languages: list = None) -> Dict[str, Any]:
         """
         Main method: uses the Strands agent to analyze spelling.
         The agent autonomously decides which tools to use and when.
         
         Args:
             directory: Root directory to analyze
+            permitted: Set of words to ignore during spell checking
+            languages: List of language codes for spell checking
             
         Returns:
             Complete analysis results
         """
+        if languages is None:
+            languages = ['en_US']
+        if permitted is None:
+            permitted = set()
+        
+        languages_str = json.dumps(languages)
+        permitted_str = json.dumps(list(permitted))
+        
         prompt = f"""You are a spell-checking agent. Your task is to check spelling in all document files in the directory: {directory}
 
                 Please follow these steps:
-                1. Find all document files in the directory
-                2. Read each file's content
-                3. Analyze each file for spelling errors
-                4. Provide a comprehensive json summary
+                1. Find all document files in the directory using find_docs_files
+                2. For each file, analyze spelling errors using analyze_spelling with languages={languages_str} and permitted={permitted_str}
+                3. Return the results in a structured JSON format
 
                 Use the available tools to complete this task."""
 

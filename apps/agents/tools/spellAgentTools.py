@@ -40,44 +40,14 @@ def find_docs_files(directory: str) -> Dict[str, Any]:
 
 
 @tool
-def read_file_content(file_path: str) -> Dict[str, Any]:
+def analyze_spelling(filepath: str, permitted: set = None, languages: List[str] = None) -> list:
     """
-    Read the complete content of a specific file.
-    
-    Args:
-        file_path: Full path to the file to read
-        
-    Returns:
-        Dictionary with file_path, content, and content_length
-    """
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        return {
-            "file_path": file_path,
-            "content": content,
-            "content_length": len(content)
-        }
-    except Exception as e:
-        return {
-            "error": f"Error reading file: {str(e)}"
-        }
-
-import re
-import os
-import enchant
-
-
-@tool
-def analyze_spelling(filepath: str, permitted: set = None, language: str = 'en_US') -> list:
-    """
-    Checks the spelling of words in a file.
+    Checks the spelling of words in a file using multiple languages.
     
     Args:
         filepath: Path of the file to check
         permitted: Set of words to ignore during spell checking
-        language: Language code for spell checking (default: 'en_US')
+        languages: List of language codes for spell checking (default: ['en_US'])
         
     Returns:
         list of misspelled words
@@ -86,6 +56,9 @@ def analyze_spelling(filepath: str, permitted: set = None, language: str = 'en_U
         ValueError: If the file extension is not supported
         FileNotFoundError: If the file does not exist
     """
+    if languages is None:
+        languages = ['en_US']
+    
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"The file {filepath} does not exist")
     
@@ -93,16 +66,16 @@ def analyze_spelling(filepath: str, permitted: set = None, language: str = 'en_U
     extension = extension.lower()
     
     if extension == '.typ':
-        return check_typ(filepath, permitted, language)
+        return check_typ(filepath, permitted, languages)
     elif extension == '.md':
-        return check_md(filepath, permitted, language)
+        return check_md(filepath, permitted, languages)
     elif extension == '.tex':
-        return check_tex(filepath, permitted, language)
+        return check_tex(filepath, permitted, languages)
     elif extension == '.txt':
-        return check_txt(filepath, permitted, language)
+        return check_txt(filepath, permitted, languages)
     else:
         raise ValueError(f"Extension {extension} not supported. Use .typ, .md, .tex, or .txt")
-
+    
 
 def clean_word(word: str) -> str:
     """
@@ -126,8 +99,11 @@ def clean_word(word: str) -> str:
     return word
 
 
-def check_typ(filepath: str, permitted: set = None, language: str = 'en_US') -> list:
-    """Check spelling in a Typst (.typ) file."""
+def check_typ(filepath: str, permitted: set = None, languages: List[str] = None) -> list:
+    """Check spelling in a Typst (.typ) file using multiple languages."""
+    if languages is None:
+        languages = ['en_US']
+    
     with open(filepath, 'r', encoding='utf-8') as f:
         original_content = f.read()
 
@@ -193,15 +169,34 @@ def check_typ(filepath: str, permitted: set = None, language: str = 'en_US') -> 
     
     # 4. Spell checking with enchant
     try:
-        spell = enchant.Dict(language)
-        misspelled = [word for word in words_to_check if not spell.check(word)]
+        # Create dictionary objects for all languages
+        spell_checkers = []
+        for lang in languages:
+            try:
+                spell_checkers.append(enchant.Dict(lang))
+            except enchant.errors.DictNotFoundError:
+                print(f"Warning: Dictionary for language '{lang}' not found, skipping it")
+        
+        if not spell_checkers:
+            raise ValueError(f"None of the specified languages are available: {languages}")
+        
+        # A word is misspelled only if it's wrong in ALL languages
+        misspelled = []
+        for word in words_to_check:
+            is_correct_in_any_language = any(spell.check(word) for spell in spell_checkers)
+            if not is_correct_in_any_language:
+                misspelled.append(word)
+        
         return list(set(misspelled))  # Remove duplicates
-    except enchant.errors.DictNotFoundError:
-        raise ValueError(f"Dictionary for language '{language}' not found. Try 'en_US', 'en_GB', 'it_IT', etc.")
+        
+    except enchant.errors.DictNotFoundError as e:
+        raise ValueError(f"Error loading dictionaries: {str(e)}")
 
-
-def check_md(filepath: str, permitted: set = None, language: str = 'en_US') -> list:
-    """Check spelling in a Markdown (.md) file."""
+def check_md(filepath: str, permitted: set = None, languages: List[str] = None) -> list:
+    """Check spelling in a Markdown (.md) file using multiple languages."""
+    if languages is None:
+        languages = ['en_US']
+    
     with open(filepath, 'r', encoding='utf-8') as f:
         original_content = f.read()
 
@@ -265,15 +260,35 @@ def check_md(filepath: str, permitted: set = None, language: str = 'en_US') -> l
     
     # Spell checking with enchant
     try:
-        spell = enchant.Dict(language)
-        misspelled = [word for word in words_to_check if not spell.check(word)]
-        return list(set(misspelled))
-    except enchant.errors.DictNotFoundError:
-        raise ValueError(f"Dictionary for language '{language}' not found. Try 'en_US', 'en_GB', 'it_IT', etc.")
+        # Create dictionary objects for all languages
+        spell_checkers = []
+        for lang in languages:
+            try:
+                spell_checkers.append(enchant.Dict(lang))
+            except enchant.errors.DictNotFoundError:
+                print(f"Warning: Dictionary for language '{lang}' not found, skipping it")
+        
+        if not spell_checkers:
+            raise ValueError(f"None of the specified languages are available: {languages}")
+        
+        # A word is misspelled only if it's wrong in ALL languages
+        misspelled = []
+        for word in words_to_check:
+            is_correct_in_any_language = any(spell.check(word) for spell in spell_checkers)
+            if not is_correct_in_any_language:
+                misspelled.append(word)
+        
+        return list(set(misspelled))  # Remove duplicates
+        
+    except enchant.errors.DictNotFoundError as e:
+        raise ValueError(f"Error loading dictionaries: {str(e)}")
 
 
-def check_tex(filepath: str, permitted: set = None, language: str = 'en_US') -> list:
-    """Check spelling in a LaTeX (.tex) file."""
+def check_tex(filepath: str, permitted: set = None, languages: list = ['en_US']) -> list:
+    """Check spelling in a Markdown (.md) file using multiple languages."""
+    if languages is None:
+        languages = ['en_US']
+    
     with open(filepath, 'r', encoding='utf-8') as f:
         original_content = f.read()
 
@@ -333,15 +348,35 @@ def check_tex(filepath: str, permitted: set = None, language: str = 'en_US') -> 
     
     # Spell checking with enchant
     try:
-        spell = enchant.Dict(language)
-        misspelled = [word for word in words_to_check if not spell.check(word)]
-        return list(set(misspelled))
-    except enchant.errors.DictNotFoundError:
-        raise ValueError(f"Dictionary for language '{language}' not found. Try 'en_US', 'en_GB', 'it_IT', etc.")
+        # Create dictionary objects for all languages
+        spell_checkers = []
+        for lang in languages:
+            try:
+                spell_checkers.append(enchant.Dict(lang))
+            except enchant.errors.DictNotFoundError:
+                print(f"Warning: Dictionary for language '{lang}' not found, skipping it")
+        
+        if not spell_checkers:
+            raise ValueError(f"None of the specified languages are available: {languages}")
+        
+        # A word is misspelled only if it's wrong in ALL languages
+        misspelled = []
+        for word in words_to_check:
+            is_correct_in_any_language = any(spell.check(word) for spell in spell_checkers)
+            if not is_correct_in_any_language:
+                misspelled.append(word)
+        
+        return list(set(misspelled))  # Remove duplicates
+        
+    except enchant.errors.DictNotFoundError as e:
+        raise ValueError(f"Error loading dictionaries: {str(e)}")
 
 
-def check_txt(filepath: str, permitted: set = None, language: str = 'en_US') -> list:
-    """Check spelling in a plain text (.txt) file."""
+def check_txt(filepath: str, permitted: set = None, languages: list = ['en_US']) -> list:
+    """Check spelling in a Markdown (.md) file using multiple languages."""
+    if languages is None:
+        languages = ['en_US']
+    
     with open(filepath, 'r', encoding='utf-8') as f:
         original_content = f.read()
 
@@ -378,8 +413,25 @@ def check_txt(filepath: str, permitted: set = None, language: str = 'en_US') -> 
     
     # Spell checking with enchant
     try:
-        spell = enchant.Dict(language)
-        misspelled = [word for word in words_to_check if not spell.check(word)]
-        return list(set(misspelled))
-    except enchant.errors.DictNotFoundError:
-        raise ValueError(f"Dictionary for language '{language}' not found. Try 'en_US', 'en_GB', 'it_IT', etc.")
+        # Create dictionary objects for all languages
+        spell_checkers = []
+        for lang in languages:
+            try:
+                spell_checkers.append(enchant.Dict(lang))
+            except enchant.errors.DictNotFoundError:
+                print(f"Warning: Dictionary for language '{lang}' not found, skipping it")
+        
+        if not spell_checkers:
+            raise ValueError(f"None of the specified languages are available: {languages}")
+        
+        # A word is misspelled only if it's wrong in ALL languages
+        misspelled = []
+        for word in words_to_check:
+            is_correct_in_any_language = any(spell.check(word) for spell in spell_checkers)
+            if not is_correct_in_any_language:
+                misspelled.append(word)
+        
+        return list(set(misspelled))  # Remove duplicates
+        
+    except enchant.errors.DictNotFoundError as e:
+        raise ValueError(f"Error loading dictionaries: {str(e)}")
