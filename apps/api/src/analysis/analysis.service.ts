@@ -1,55 +1,37 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { GithubCommunicatorService } from 'src/common/github-communicator/github-communicator.service';
+import { ValidationService } from 'src/common/validation/validation.service';
+import { ConfigService } from '@nestjs/config';
+import { AnalysisExecutorService } from './analysis-executor/analysis-executor.service';
 
 @Injectable()
 export class AnalysisService {
-    validateURL(inputURL: string) : { repoURL: string; repoOwner: string; repoName: string } {
-        let url: URL;
-        try {
-            url = new URL(inputURL);
-        } catch {
-            throw new BadRequestException({ 
-                code: 'INVALID_URL', 
-                message: "Must be an URL" 
-            });
+    constructor(private readonly configuration: ConfigService,
+                private readonly validationService: ValidationService,
+                private readonly githubCommunicatorService: GithubCommunicatorService,
+                private readonly analysisRunner: AnalysisExecutorService
+               ) {}
+
+    public async analyzeRepository(URL: string) {
+        const { repoURL, repoOwner, repoName } = this.validationService.validateURL(URL);
+
+        console.log("\n[Log di Sistema]: L'URL ricevuto è valido per poter contattare GitHub");
+
+        const existRepository = await this.githubCommunicatorService.checkIfRepositoryExists(repoOwner, repoName);
+        if(!existRepository) {
+            console.log('\n[Log di Sistema]: La repository non è stata trovata');
+            throw new NotFoundException('[ERRORE] Repository non trovata');
         }
 
-        if(url.protocol !== 'https:') {
-            throw new BadRequestException({ 
-                code: 'INVALID_HTTPS_URL', 
-                message: "Must have https protocol" 
-            });
-        }
+        console.log('\n[Log di Sistema]: La repository è valida per svolgere l\'analisi');
 
-        if(url.hostname !== 'github.com') {
-            throw new BadRequestException({ 
-                code: 'INVALID_GITHUB_URL', 
-                message: "Must be a github.com URL" 
-            });
-        }
+        const analysisMethod = this.configuration.get('ANALYSIS_METHOD');
 
-        const urlBodyParts = url.pathname.split('/').filter(Boolean);
-        if(urlBodyParts.length < 2) {
-            throw new BadRequestException({ 
-                code: 'INVALID_GITHUB_URL',
-                message: "URL must be https://github.com/<owner>/<repo>"
-            });
-        }
+        this.analysisRunner.startAnalysis(String(analysisMethod), repoOwner, repoName);
 
-        const repoOwner = urlBodyParts[0];
-        let repoName = urlBodyParts[1];
-        if(repoName.endsWith('.git')) {
-            repoName = repoName.slice(0, -4);
+        return {
+            status: 'ok',
+            message: `Analisi di ${repoOwner}/${repoName} (${repoURL}) avviata correttamente`
         }
-
-        const validCharacters = /^[A-Za-z0-9_.-]+$/;
-        if(!validCharacters.test(repoOwner) || !validCharacters.test(repoName)) {
-            throw new BadRequestException({
-                code: "INVALID_GITHUB_URL",
-                message: "repoOwner or repoName are not valid names"
-            });
-        }
-
-        const repoURL = `https://github.com/${repoOwner}/${repoName}`;
-        return { repoURL, repoOwner, repoName };
     }
 }

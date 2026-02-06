@@ -3,12 +3,13 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AnalysisModule } from './analysis/analysis.module';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ConfigModule, ConfigService } from '@nestjs/config'
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
       ConfigModule.forRoot({
-          isGlobal: true
+          isGlobal: true,
+          envFilePath: '.env'
       }),
 
       AnalysisModule,
