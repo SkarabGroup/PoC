@@ -1,0 +1,135 @@
+{
+  "spelling_analysis": [
+    {
+      "filepath": "temp/PoC_test_repo/README.md",
+      "misspelled_words": [
+        "poc",
+        "poc_test_repo"
+      ]
+    },
+    {
+      "filepath": "temp/PoC_test_repo/src/README.md",
+      "misspelled_words": [
+        "sintax",
+        "poc",
+        "performence",
+        "secund",
+        "capabilites",
+        "testin",
+        "docummentation",
+        "suport",
+        "occational",
+        "codeguardian",
+        "prooof",
+        "isues",
+        "embeded",
+        "objetives",
+        "funtionality",
+        "commnets"
+      ]
+    },
+    {
+      "filepath": "temp/PoC_test_repo/Docs/test_md.md",
+      "misspelled_words": [
+        "intedned",
+        "insructions",
+        "dokument",
+        "documentaton",
+        "purpuses",
+        "dokumentation",
+        "repositry",
+        "instrucctions",
+        "purpse",
+        "comprehenisve",
+        "erors",
+        "usgage"
+      ]
+    },
+    {
+      "filepath": "temp/PoC_test_repo/Docs/test_tex.tex",
+      "misspelled_words": [
+        "contenct",
+        "aknowledgements",
+        "analiyze",
+        "demonstates",
+        "procesing",
+        "documantation",
+        "wil",
+        "documentted",
+        "throuhg",
+        "codeguardian",
+        "purpse",
+        "erors",
+        "poc",
+        "enviroment",
+        "futher"
+      ]
+    },
+    {
+      "filepath": "temp/PoC_test_repo/Docs/test_typ.typ",
+      "misspelled_words": [
+        "speling",
+        "sucessfully",
+        "capabilitys",
+        "improvments",
+        "corect",
+        "demonstrtion",
+        "contanes",
+        "erors",
+        "inputenc",
+        "utf8",
+        "aditional",
+        "documenets",
+        "purpouses",
+        "identyfy",
+        "documention",
+        "developement",
+        "codeguardian",
+        "refferences",
+        "futher",
+        "calulations",
+        "poc",
+        "functionalites"
+      ]
+    },
+    {
+      "filepath": "temp/PoC_test_repo/Docs/test_txt.txt",
+      "misspelled_words": [
+        "iniciative",
+        "verificaton",
+        "speling",
+        "robus",
+        "formating",
+        "folowing",
+        "monospaced",
+        "throught",
+        "erors",
+        "exemple",
+        "capibilities",
+        "codeguardian",
+        "demostrated",
+        "tets",
+        "analisis",
+        "desined",
+        "exampl",
+        "dokument",
+        "typst",
+        "dokumentation",
+        "demostrates",
+        "poc"
+      ]
+    }
+  ],
+  "summary": {
+    "total_files": 6,
+    "total_errors": 81
+  },
+  "execution_metrics": {
+    "total_time_seconds": 37.71,
+    "initialization_time_seconds": 0.02,
+    "execution_time_seconds": 37.68,
+    "parsing_time_seconds": 0,
+    "started_at": "2026-02-06 17:04:00",
+    "completed_at": "2026-02-06 17:04:38"
+  }
+}

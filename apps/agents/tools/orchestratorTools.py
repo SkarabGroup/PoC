@@ -1,28 +1,42 @@
 from pathlib import Path
 import os
 import sys
+from strands import tool
+from spellAgent import SpellAgent
+import json
+from git import Repo
 
-def cloneRepository(repo_url, target_dir):
+
+@tool
+def clone_repo_tool(repo_url: str, temp_path: str) -> str:
     """
-    Mock of the clone function.
-    Instead of git clone, creates a test folder and file structure.
+    Clones a GitHub repository into a local temporary folder.
+    Returns a success or error message.
     """
     try:
-        # 1. Create the target directory (if it doesn't exist)
-        os.makedirs(target_dir, exist_ok=True)
-        
-        # 2. Create the "Documentation" subfolder
-        doc_path = os.path.join(target_dir, "Documentation")
-        os.makedirs(doc_path, exist_ok=True)
-        
-        # 3. Create the "test.txt" file inside "Documentation"
-        file_path = os.path.join(doc_path, "test.txt")
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write("This is a test file geeeeenerated by the mock agent.\n")
-            f.write(f"Simulatted repository: {repo_url}")
-        print(f"DEBUG: [MOCK] Structure successfully created in {target_dir}", file=sys.stderr)
-        return True
+        repo_name = repo_url.split("/")[-1].replace(".git", "")
+        clone_path = Path(temp_path) / repo_name
+
+        Repo.clone_from(repo_url, clone_path)
+        return f"Successfully cloned repository to {clone_path}."
 
     except Exception as e:
-        print(f"DEBUG: [MOCK] Structure creation error - {str(e)}", file=sys.stderr)
-        return False
+        return f"Error: Failed to clone repository {repo_url}. {str(e)}"
+
+
+@tool
+def analyze_spelling_tool(temp_path: str, permitted: set = None, languages: list = None) -> str:
+    """
+    Starts the specialized SpellAgent to analyze files in the specified path for spelling errors.
+    It supports specifying permitted words to ignore and multiple languages for spell checking.
+    Returns the spelling analysis results in JSON format.
+    """
+    if languages is None:
+        languages = ['en_US']
+    if permitted is None:
+        permitted = set()
+    
+    spell_agent = SpellAgent()
+    result = spell_agent.check_spelling(temp_path, permitted=permitted, languages=languages)
+    return json.dumps(result)
+    return json.dumps(result)

@@ -3,11 +3,14 @@ botocore==1.42.32
 gitdb==4.0.12
 GitPython==3.1.46
 jmespath==1.0.1
-pyspellchecker==0.8.4
 python-dateutil==2.9.0.post0
 s3transfer==0.16.0
 six==1.17.0
 smmap==5.0.2
 urllib3==2.6.3
-pyspellchecker
 python-dotenv==1.2.1
+strands-agents 
+strands-agents-tools
+pymongo==4.4.0
+GitPython
+pyenchant

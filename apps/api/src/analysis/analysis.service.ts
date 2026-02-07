@@ -3,6 +3,8 @@ import { GithubCommunicatorService } from 'src/common/github-communicator/github
 import { ValidationService } from 'src/common/validation/validation.service';
 import { ConfigService } from '@nestjs/config';
 import { AnalysisExecutorService } from './analysis-executor/analysis-executor.service';
+import { v4 as uuidv4 } from 'uuid';
+
 
 @Injectable()
 export class AnalysisService {
@@ -13,7 +15,7 @@ export class AnalysisService {
                ) {}
 
     public async analyzeRepository(URL: string) {
-        const { repoURL, repoOwner, repoName } = this.validationService.validateURL(URL);
+        const { repoOwner, repoName } = this.validationService.validateURL(URL);
 
         console.log("\n[Log di Sistema]: L'URL ricevuto è valido per poter contattare GitHub");
 
@@ -24,14 +26,15 @@ export class AnalysisService {
         }
 
         console.log('\n[Log di Sistema]: La repository è valida per svolgere l\'analisi');
-
+        const analysisId = uuidv4();
         const analysisMethod = this.configuration.get('ANALYSIS_METHOD');
 
-        this.analysisRunner.startAnalysis(String(analysisMethod), repoOwner, repoName);
+        this.analysisRunner.startAnalysis(String(analysisMethod), repoOwner, repoName, analysisId);
 
         return {
             status: 'ok',
-            message: `Analisi di ${repoOwner}/${repoName} (${repoURL}) avviata correttamente`
+            analysisId: analysisId,
+            message: `Analisi di ${repoOwner}/${repoName} avviata correttamente`
         }
     }
 }

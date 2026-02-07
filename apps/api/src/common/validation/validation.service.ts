@@ -2,7 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 
 @Injectable()
 export class ValidationService {
-    validateURL(inputURL: string) : { repoURL: string; repoOwner: string; repoName: string } {
+    validateURL(inputURL: string): { repoOwner: string; repoName: string } {
         let url: URL;
         try {
             url = new URL(inputURL);
@@ -49,7 +49,6 @@ export class ValidationService {
             });
         }
 
-        const repoURL = `https://github.com/${repoOwner}/${repoName}`;
-        return { repoURL, repoOwner, repoName };
+        return { repoOwner, repoName };
     }
 }

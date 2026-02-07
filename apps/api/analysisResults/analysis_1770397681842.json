@@ -1,0 +1,14 @@
+{
+  "spelling_analysis": [
+    "test_error"
+  ],
+  "summary": {
+    "total_files": 1,
+    "total_errors": 1
+  },
+  "execution_metrics": {
+    "total_time_seconds": 0.5,
+    "started_at": "2026-02-06 10:00:00",
+    "completed_at": "2026-02-06 10:00:01"
+  }
+}
