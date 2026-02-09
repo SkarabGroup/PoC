@@ -4,19 +4,22 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AnalysisModule } from './analysis/analysis.module';
+import { AuthModule } from './auth/auth.module';
+import { RepositoriesModule } from './repositories/repositories.module';
+import { UsersModule } from './users/users.module';
 import { ResultsController } from './results.controller';
 import { UsersController } from './user.controller';
 import { ProjectsController } from './project.controller';
 import { OrchestratorRun, OrchestratorRunSchema } from './orchestrator-run.schema';
-import { User, UserSchema } from './user.schema';
 import { Project, ProjectSchema } from './project.schema';
+import { User, UserSchema } from './users/schemas/user.schema';
 
 @Module({
   imports: [
     // Carica .env
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '../.env',
+      envFilePath: '../../.env',
     }),
 
     // Connessione MongoDB
@@ -31,12 +34,15 @@ import { Project, ProjectSchema } from './project.schema';
     // Schema per leggere i dati
     MongooseModule.forFeature([
       { name: OrchestratorRun.name, schema: OrchestratorRunSchema },
-      { name: User.name, schema: UserSchema },
       { name: Project.name, schema: ProjectSchema },
+      { name: User.name, schema: UserSchema },
     ]),
 
-    // Modulo Analysis (dal branch HEAD)
+    // Moduli applicazione
     AnalysisModule,
+    AuthModule,
+    RepositoriesModule,
+    UsersModule,
   ],
   controllers: [
     AppController,

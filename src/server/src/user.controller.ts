@@ -1,7 +1,7 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { User } from './user.schema';
+import { User } from './users/schemas/user.schema';
 import { Project } from './project.schema';
 import { OrchestratorRun } from './orchestrator-run.schema';
 
@@ -21,15 +21,15 @@ export class UsersController {
   async getAllUsers() {
     return this.userModel
       .find()
-      .select('-password') // Non restituire password
-      .sort({ created_at: -1 })
+      .select('-passwordHash') // Non restituire password
+      .sort({ createdAt: -1 })
       .exec();
   }
 
   // GET /api/users/:id - dettagli utente
   @Get(':id')
   async getUserById(@Param('id') id: string) {
-    return this.userModel.findById(id).select('-password').exec();
+    return this.userModel.findById(id).select('-passwordHash').exec();
   }
 
   // GET /api/users/:id/projects - progetti dell'utente

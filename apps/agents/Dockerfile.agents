@@ -10,5 +10,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . ./agents/
 
 RUN mkdir -p /app/tempCloned
+RUN chmod +x /app/agents/entrypoint.sh
 ENV PYTHONPATH=/app/agents
-ENTRYPOINT ["python", "agents/orchestrator.py"]
+ENTRYPOINT ["/app/agents/entrypoint.sh"]

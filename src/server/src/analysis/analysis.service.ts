@@ -35,21 +35,24 @@ export class AnalysisService {
 
         return new Promise((resolve, reject) => {
             const runAnalyzerAgent = spawn('docker', [
-                'run', 
+                'run',
                 '--rm', // Pulisce il container dopo l'uso
-                
+
                 // MODIFICA 2: Networking fondamentale
                 // Permette al container di vedere il tuo PC come "host.docker.internal"
-                '--add-host=host.docker.internal:host-gateway', 
+                '--add-host=host.docker.internal:host-gateway',
 
                 // MODIFICA 3: Override connessione Mongo
                 // Diciamo allo script di non usare localhost, ma il gateway dell'host
                 '-e', 'MONGODB_URI=mongodb://host.docker.internal:27017/agenti_db',
 
+                // Passa USE_MOCK_ANALYSIS dal .env al container
+                '-e', `USE_MOCK_ANALYSIS=${process.env.USE_MOCK_ANALYSIS || 'false'}`,
+
                 ...envConfig, // Passa le chiavi AWS dal .env
 
                 'analyzer-agent', // Nome immagine Docker
-                
+
                 repoURL,          // Arg 1: Repo
                 "tmp/analysis",   // Arg 2: Path interno container
                 email             // Arg 3: Email (MODIFICA 4)
