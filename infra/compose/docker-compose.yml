@@ -1,11 +1,45 @@
 services:
-  mongo:
-    image: mongo:7
-    container_name: mongoPoC
-    restart: unless-stopped
-    ports: 
+  mongodb:
+    image: mongo:latest
+    ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ../../
+      dockerfile: ./apps/api/Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongodb
+      - redis
+    volumes:
+      - ../../apps/api:/app
+      - /app/node_modules
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/codeguardian
+      - REDIS_HOST=redis
+
+  frontend:
+    build:
+      context: ../../
+      dockerfile: ./apps/frontend/Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    volumes:
+      - ../../apps/frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:3000
+
 volumes:
   mongo_data:
