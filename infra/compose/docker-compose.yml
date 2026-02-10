@@ -12,19 +12,20 @@ services:
       - "6379:6379"
 
   api:
-    build:
-      context: ../../
-      dockerfile: ./apps/api/Dockerfile
+    image: node:20-alpine
+    working_dir: /app
     ports:
       - "3000:3000"
     depends_on:
       - mongodb
       - redis
     volumes:
-      - ../../apps/api:/app
-      - /app/node_modules
+      - ../../src/server/dist:/app/dist:ro
+      - ../../src/server/node_modules:/app/node_modules:ro
+    command: ["node", "dist/main.js"]
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/codeguardian
+      - MONGO_URI=mongodb://mongodb:27017/codeguardian
       - REDIS_HOST=redis
 
   frontend:
