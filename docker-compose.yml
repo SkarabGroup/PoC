@@ -98,6 +98,7 @@ services:
     volumes:
       - ./apps/agents:/app/agents
       - temp_cloned:/app/tempCloned
+    entrypoint: ["tail", "-f", "/dev/null"] # Keep container idle, don't run script
     restart: unless-stopped
 
 volumes:
