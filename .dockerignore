@@ -1,13 +1,25 @@
-src/backend/
 node_modules/
+**/node_modules/
 
 **/__pycache__/
 **/*.pyc
 
 venv/
-.env/
+.env
 
 tempCloned/
 .git/
 *.log
 .DS_Store
+
+logs/
+data/
+
+# IDE
+.idea/
+.vscode/
+.claude/
+
+# Build artifacts
+apps/api/dist/
+apps/frontend/build/

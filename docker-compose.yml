@@ -1,0 +1,105 @@
+services:
+  # ── Database ──────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Cache / Queue ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API (NestJS) ──────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - PORT=3000
+      - NODE_ENV=development
+      - MONGO_URI=mongodb://mongodb:27017/agenti_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-15m}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-your-refresh-secret-key}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-7d}
+      - PYTHON_PATH=/usr/local/bin/python3
+      - ORCHESTRATOR_PATH=/app/agents/orchestrator.py
+      - TEMP_PATH=/app/tempCloned
+      - USE_MOCK_ANALYSIS=${USE_MOCK_ANALYSIS:-true}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - AWS_REGION=${AWS_REGION:-eu-central-1}
+      - ORCHESTRATOR_BEDROCK_MODEL_ID=${ORCHESTRATOR_BEDROCK_MODEL_ID:-}
+      - MAX_AGENT_ITERATIONS=${MAX_AGENT_ITERATIONS:-20}
+      - FRONTEND_URL=http://localhost:5173
+    volumes:
+      - ./apps/api:/app
+      - /app/node_modules # Prevents host's node_modules from overwriting container's
+      - /var/run/docker.sock:/var/run/docker.sock # Allows API to spawn sibling containers
+      - temp_cloned:/app/tempCloned
+
+  # ── Frontend (React + Vite) ──────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
+
+  # ── Python Agents ─────────────────────────────────────────
+  agents:
+    build:
+      context: ./apps/agents
+      dockerfile: Dockerfile.agents
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/agenti_db
+      - USE_MOCK_ANALYSIS=${USE_MOCK_ANALYSIS:-true}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - AWS_REGION=${AWS_REGION:-eu-central-1}
+      - ORCHESTRATOR_BEDROCK_MODEL_ID=${ORCHESTRATOR_BEDROCK_MODEL_ID:-}
+      - MAX_AGENT_ITERATIONS=${MAX_AGENT_ITERATIONS:-20}
+      - TEMP_PATH=/app/tempCloned
+    volumes:
+      - ./apps/agents:/app/agents
+      - temp_cloned:/app/tempCloned
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  temp_cloned:

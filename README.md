@@ -1,76 +1,74 @@
-# PoC
-Repository specifica per il codice del PoC per il progetto code guardian
+# PoC Code Guardian
 
-API:
-```bash
-cd apps/api && npm run start:dev
-curl -X GET http://localhost:3000/health
-```
+Repository specifica per il codice del PoC per il progetto Code Guardian.
 
-Test:
-```bash
-curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"repoURL": "https://github.com/Poian3k/TeXeneratorGUI"}'
-```
-Dovrebbe restituire:
-```bash
+## 🚀 Quick Start (Docker)
 
+L'intero progetto (Frontend, Backend, Database, Redis, Agents) è containerizzato.
+Requisito unico: **Docker Desktop**.
+
+### 1. Avvio
+
+```bash
+./start-all.sh
 ```
 
-Provare anche:
+Questo script:
+
+- Verifica che Docker sia avviato
+- Costruisce le immagini (la prima volta richiede qualche minuto)
+- Avvia tutti i servizi
+- Mostra i log e lo stato
+
+### 2. Accesso
+
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:3000
+- **MongoDB**: mongodb://localhost:27017
+- **Redis**: localhost:6379
+
+### 3. Stop
+
+Per fermare tutto e rimuovere i container:
+
 ```bash
-curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"repoURL": "https://github.com/bimbumbam/bambumbim"}'
-curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{}'
+./stop-all.sh
 ```
 
-Se tutto funziona:
+---
+
+## 🛠 Sviluppo
+
+Il codice sorgente è montato nei container, quindi le modifiche si riflettono (quasi) in tempo reale, tranne per nuove dipendenze che richiedono un rebuild.
+
+### API Test
+
+Puoi testare l'API direttamente:
+
+Health Check:
+
 ```bash
-cd infra/compose
-docker compose up -d
+curl http://localhost:3000/health
 ```
 
-Se genera un errore legato alle credenziali:
-```bash
-nano ~/.docker/config.json
-```
-e rimuovere la riga:
-```bash
-"credsStore": "desktop"
-= .env
-In .env.example é espressa la struttura del .env
+Analisi Mock (Test):
 
-3. Installare pymongo
-```bash
-pip install pymongo
-```
-
-4. Avviare MongoDB
-localmente
-```bash
-sudo systemctl start mongodb (su ubuntu/debian)
-```
-con docker
-```bash
-docker run -d -p 27017:27017 --name mongodb mongo:latest 
-```
-da eseguire nel terminale della cartella agenti: 
-```bash
-docker build -t analyzer-agent -f Dockerfile.agents .
-```
-
-curl per testare se va il db tramite server
 ```bash
 curl -X POST http://localhost:3000/analysis \
   -H "Content-Type: application/json" \
-  -d '{
-    "repoURL": "https://github.com/octocat/Hello-World",
-    "email": "test-user@example.com"
-  }'
+  -d '{"repoURL": "https://github.com/Poian3k/TeXeneratorGUI"}'
 ```
 
-per testare il db aprire 3 shcede terminale:
-nella prima avviare il docker di mongo con il comando sopra.
-nella seconda entrare nella cartella server e avviare il server con il comando
-```bash
-npm run stard:dev
-```
-nella terza inseire il comando curl, se è andato stampa un json orrendo
+---
+
+## 📂 Struttura
+
+- `apps/frontend`: React + Vite
+- `apps/api`: NestJS
+- `apps/agents`: Python Agents (AI)
+- `infra/compose`: (Legacy, ora usa root `docker-compose.yml`)
+
+## 📝 Note
+
+- Assicurati che le porte 3000, 5173, 27017 e 6379 siano libere.
+- Lo script `start-all.sh` gestisce automaticamente il file `.env`.
