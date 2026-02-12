@@ -1,4 +1,13 @@
-import { Body, Controller, Post, Get, UseGuards, Query } from '@nestjs/common';
+import { 
+  Body, 
+  Controller, 
+  Post, 
+  Get, 
+  UseGuards, 
+  Query, 
+  Logger, 
+  NotFoundException 
+} from '@nestjs/common';
 import { AnalysisService } from './analysis.service';
 import { CreateAnalysisDto } from '../dto/create-analysis.dto';
 import { InjectModel } from '@nestjs/mongoose';
@@ -10,6 +19,8 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('analysis')
 export class AnalysisController {
+  private readonly logger = new Logger(AnalysisController.name);
+
   constructor(
     private readonly analysis: AnalysisService,
     @InjectModel(OrchestratorRun.name) private runModel: Model<OrchestratorRun>,
@@ -29,6 +40,70 @@ export class AnalysisController {
     };
   }
 
+  @Post('run')
+  @UseGuards(JwtAuthGuard)
+  async runAnalysis(
+    @Body() body: CreateAnalysisDto,
+    @CurrentUser() user: any,
+  ) {
+    const { repoURL } = this.analysis.validateURL(body.repoURL);
+    
+    // Fallback email se il token non la ha (utile per test o token vecchi)
+    const userEmail = user?.email || body.email || 'unknown@user.com'; 
+    
+    try {
+      // runAnalysis ritorna l'ID del job (stato pending)
+      const runId = await this.analysis.runAnalysis(repoURL, userEmail);
+      
+      return {
+        ok: true,
+        message: 'Analysis started successfully. Results will be saved via Webhook.',
+        data: {
+          runId: runId,
+          status: 'pending'
+        },
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        message: 'Analysis failed to start',
+        error: error.message,
+      };
+    }
+  }
+
+  @Post('webhook')
+  async handleWebhook(@Body() result: any) {
+    this.logger.log(`📥 Webhook ricevuto da Python. ID Analisi: ${result.analysis_id}`);
+    
+    if (!result.analysis_id) {
+        this.logger.error('Webhook ricevuto senza analysis_id');
+        return { ok: false };
+    }
+
+    // Aggiorna il record nel DB con i risultati veri
+    const updated = await this.runModel.findByIdAndUpdate(
+        result.analysis_id,
+        {
+            status: result.summary ? 'completed' : 'error',
+            orchestrator_summary: result.summary || {},
+            spell_agent_details: result.spelling_analysis || [],
+            metadata: {
+                ...result.execution_metrics, 
+                updated_at: new Date()
+            }
+        },
+        { new: true }
+    );
+
+    if (!updated) {
+        throw new NotFoundException(`Analysis ID ${result.analysis_id} not found`);
+    }
+
+    this.logger.log(`✅ Risultati salvati per Run ID: ${result.analysis_id}`);
+    return { ok: true };
+  }
+
   @Get('history')
   @UseGuards(JwtAuthGuard)
   async getHistory(
@@ -40,14 +115,17 @@ export class AnalysisController {
     const limitNum = limit ? parseInt(limit) : 20;
     const skip = (pageNum - 1) * limitNum;
 
+    // Filtra per userId se presente nel token
+    const filter = user?.userId ? { userId: user.userId } : {};
+
     const [analyses, total] = await Promise.all([
       this.runModel
-        .find({ userId: user.userId })
-        .sort({ timestamp: -1 })
+        .find(filter)
+        .sort({ timestamp: -1 }) // o 'metadata.created_at' se usi quello
         .skip(skip)
         .limit(limitNum)
         .exec(),
-      this.runModel.countDocuments({ userId: user.userId }),
+      this.runModel.countDocuments(filter),
     ]);
 
     const projectIds = [
@@ -66,17 +144,14 @@ export class AnalysisController {
         id: analysisObj._id,
         repoId: analysisObj.projectId,
         repoName: analysisObj.projectId
-          ? projectMap.get(analysisObj.projectId) || 'Unknown'
+          ? projectMap.get(analysisObj.projectId.toString()) || 'Unknown'
           : 'Unknown',
-        date: analysisObj.timestamp,
+        date: analysisObj.metadata?.created_at || analysisObj.timestamp, // Adatta al tuo schema
         status: analysisObj.status,
         report: analysisObj.orchestrator_summary
           ? {
-              qualityScore: analysisObj.orchestrator_summary.quality_score || 0,
-              securityScore:
-                analysisObj.orchestrator_summary.security_score || 0,
-              performanceScore:
-                analysisObj.orchestrator_summary.performance_score || 0,
+              totalFiles: analysisObj.orchestrator_summary.total_files || 0,
+              totalErrors: analysisObj.orchestrator_summary.total_errors || 0
             }
           : null,
       };

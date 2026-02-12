@@ -5,19 +5,19 @@ export type UserDocument = User & Document;
 
 @Schema({ timestamps: true })
 export class User {
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true, unique: true, index: true })
   username: string;
 
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true, unique: true, index: true })
   email: string;
 
   @Prop({ required: true })
   passwordHash: string;
 
-  @Prop()
+  @Prop({ index: true })
   githubId?: string;
 
-  @Prop()
+  @Prop({ index: true })
   gitlabId?: string;
 
   @Prop({ default: true })
@@ -33,9 +33,3 @@ export class User {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
-
-// Create indexes
-UserSchema.index({ username: 1 });
-UserSchema.index({ email: 1 });
-UserSchema.index({ githubId: 1 });
-UserSchema.index({ gitlabId: 1 });

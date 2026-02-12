@@ -72,3 +72,84 @@ curl -X POST http://localhost:3000/analysis \
 
 - Assicurati che le porte 3000, 5173, 27017 e 6379 siano libere.
 - Lo script `start-all.sh` gestisce automaticamente il file `.env`.
+
+
+# Come avviare
+# Rebuild (serve solo la prima volta o dopo una modifica)
+```bash
+docker-compose build
+```
+# Avvia
+```bash
+docker-compose up -d
+```
+# Verifica
+```bash
+docker-compose ps
+```
+# Genera troken nel container ed esportalo
+```bash
+#se utente è già registrato
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "testuser",
+    "password": "Password1!"
+  }'
+
+#se utente è ancora da registrare
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "mario_rossi",
+    "email": "mario.rossi@nuovo.com",
+    "password": "Password1!"
+  }' | jq '.'
+
+#esportare il token  di accesso ricevuto
+export JWT_TOKEN="<copia_output_qui>"
+```
+
+# Test
+```bash
+curl -X POST http://localhost:3000/analysis/run \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"repoURL": "https://github.com/octocat/Hello-World"}' | jq '.'
+  #PS: jq è un comando pwe trasformare i dati json
+```
+
+## Se non si ha jq installato non serve metterlo
+```bash 
+# Senza formattazione (JSON raw)
+curl -X POST http://localhost:3000/analysis/run \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"repoURL": "https://github.com/octocat/Hello-World"}'
+```
+
+# Accesso al db da line a di comando
+```bash 
+docker-compose exec mongodb mongosh agenti_db
+```
+
+## Per navigare il database
+```bash
+show collections          # Mostra tabelle
+db.users.find().pretty()  # Tutti gli utenti
+db.projects.find().pretty()  # Tutti i progetti
+db.orchestrator_runs.find().sort({createdAt:-1}).limit(1).pretty()  # Ultima analisi
+
+# Conta documenti
+db.users.countDocuments()
+db.projects.countDocuments()
+db.orchestrator_runs.countDocuments()
+
+# Esci
+exit
+```
+
+# Per vedere i log del server avviato tramite docker 
+```bash 
+docker-compose logs -f api
+```

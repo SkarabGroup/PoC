@@ -1,7 +1,12 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsUrl, IsOptional, IsEmail } from 'class-validator';
 
 export class CreateAnalysisDto {
-    @IsString()
-    @IsNotEmpty()
-    repoURL: string;
+  @IsString()
+  @IsUrl()
+  repoURL: string;
+
+  // Aggiungi questo blocco
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 }

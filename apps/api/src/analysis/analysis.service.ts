@@ -1,7 +1,13 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as bcrypt from 'bcrypt';
+import { User } from '../users/schemas/user.schema';
+import { Project } from '../project.schema';
+import { OrchestratorRun } from '../orchestrator-run.schema';
 
 export interface AnalysisResult {
   status: 'success' | 'error';
@@ -9,11 +15,72 @@ export interface AnalysisResult {
   findings: any;
   timestamp: string;
   mongodb_run_id?: string;
+  userId?: string;
+  projectId?: string;
 }
 
 @Injectable()
 export class AnalysisService {
   private readonly logger = new Logger(AnalysisService.name);
+
+  constructor(
+    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(Project.name) private projectModel: Model<Project>,
+    @InjectModel(OrchestratorRun.name) private runModel: Model<OrchestratorRun>,
+  ) {}
+
+  /**
+   * Get or create a user by email
+   * Creates users with placeholder password (they cannot login)
+   * Returns the userId (MongoDB _id as string)
+   */
+  async getOrCreateUser(email: string): Promise<string> {
+    let user = await this.userModel.findOne({ email }).exec();
+
+    if (!user) {
+      const username = email.split('@')[0];
+      // Create placeholder password - user cannot login with this
+      const passwordHash = await bcrypt.hash('ANALYSIS_USER_NO_LOGIN_' + Date.now(), 10);
+      
+      user = await this.userModel.create({
+        username,
+        email,
+        passwordHash,
+        notificationsEnabled: true,
+        criticalIssuesNotifications: true,
+      });
+      this.logger.log(`Created analysis user: ${email} (cannot login)`);
+    }
+
+    return user._id.toString();
+  }
+
+  /**
+   * Get or create a project by userId and repo_url
+   * Returns the projectId (MongoDB _id as string)
+   */
+  async getOrCreateProject(userId: string, repoUrl: string, repoName: string): Promise<string> {
+    let project = await this.projectModel.findOne({ 
+      userId, 
+      repo_url: repoUrl 
+    }).exec();
+
+    if (!project) {
+      project = await this.projectModel.create({
+        userId,
+        repo_url: repoUrl,
+        name: repoName,
+        last_check: new Date(),
+      });
+      this.logger.log(`Created new project: ${repoName} for user ${userId}`);
+    }
+
+    return project._id.toString();
+  }
+
+  /**
+   * Save orchestrator run to MongoDB
+   */
 
   validateURL(inputURL: string): {
     repoURL: string;
@@ -70,101 +137,104 @@ export class AnalysisService {
     return { repoURL, repoOwner, repoName };
   }
 
-  private saveReport(analysisResult: AnalysisResult) {
-    const reportDirectory = path.resolve(process.cwd(), 'reports');
-    if (!fs.existsSync(reportDirectory))
-      fs.mkdirSync(reportDirectory, { recursive: true });
+  /**
+   * Avvia l'analisi in background.
+   * 1. Crea il record nel DB in stato 'pending'.
+   * 2. Lancia il processo Docker (Fire-and-Forget).
+   * 3. Ritorna subito l'ID al controller.
+   */
+  public async runAnalysis(repoURL: string, email: string): Promise<string> {
+    this.logger.log(`🚀 Preparazione analisi per: ${repoURL} (User: ${email})`);
 
-    const fileName = `report-${Date.now()}.json`;
-    const filePath = path.join(reportDirectory, fileName);
+    // Validazione e recupero ID
+    const { repoName } = this.validateURL(repoURL);
+    const userId = await this.getOrCreateUser(email);
+    const projectId = await this.getOrCreateProject(userId, repoURL, repoName);
 
-    fs.writeFileSync(filePath, JSON.stringify(analysisResult, null, 2));
+    // 1. Creiamo SUBITO il record nel DB in stato "pending"
+    const newRun = await this.runModel.create({
+        userId,
+        projectId,
+        repository: repoURL,
+        status: 'pending',
+        metadata: {
+            created_at: new Date(),
+            user_email: email,
+            triggered_by: 'orchestrator_v2'
+        }
+    });
+
+    const runId = newRun._id.toString();
+    this.logger.log(`📝 Run creata nel DB con ID: ${runId} - Avvio Docker...`);
+
+    // 2. Lancia Docker in background senza 'await' bloccante
+    // Gestiamo solo l'errore di spawn immediato
+    this.spawnDockerProcess(repoURL, email, runId).catch(err => {
+        this.logger.error(`❌ Errore critico avvio Docker: ${err.message}`);
+        // Se Docker non parte proprio, aggiorniamo il DB a failed
+        this.runModel.findByIdAndUpdate(runId, { 
+            status: 'failed', 
+            error: err.message,
+            metadata: { failed_at: new Date() }
+        }).exec();
+    });
+
+    return runId;
   }
 
-  public async runAnalysis(
-    repoURL: string,
-    email: string,
-  ): Promise<AnalysisResult> {
-    this.logger.log(`🐳 Avvio Docker Agent per: ${repoURL} (User: ${email})`);
-
-    return new Promise((resolve, reject) => {
+  /**
+   * Metodo privato per gestire lo spawn di Docker.
+   * Passa l'ID analisi a Python tramite var d'ambiente.
+   */
+  private async spawnDockerProcess(repoURL: string, email: string, runId: string) {
+    return new Promise<void>((resolve, reject) => {
       const runAnalyzerAgent = spawn('docker', [
         'run',
         '--rm',
-        '--network',
-        'poc_default', // Connect to the same network as MongoDB
-        '-e',
-        'MONGODB_URI=mongodb://mongodb:27017/codeguardian', // Use service name
-        '-e',
-        `USE_MOCK_ANALYSIS=${process.env.USE_MOCK_ANALYSIS || 'false'}`,
-        '-e',
-        `AWS_ACCESS_KEY_ID=${process.env.AWS_ACCESS_KEY_ID || ''}`,
-        '-e',
-        `AWS_SECRET_ACCESS_KEY=${process.env.AWS_SECRET_ACCESS_KEY || ''}`,
-        '-e',
-        `AWS_SESSION_TOKEN=${process.env.AWS_SESSION_TOKEN || ''}`,
-        '-e',
-        `AWS_REGION=${process.env.AWS_REGION || 'eu-central-1'}`,
-        '-e',
-        `ORCHESTRATOR_BEDROCK_MODEL_ID=${process.env.ORCHESTRATOR_BEDROCK_MODEL_ID || ''}`,
-        'poc-agents', // Use the image built by docker-compose
-        repoURL,
-        'tmp/analysis',
-        email,
+        // Fondamentale: Passiamo l'ID a Python così può chiamare il Webhook
+        '-e', `ANALYSIS_ID=${runId}`,
+        '-e', `AGENT_MODEL_ID=${process.env.AGENT_MODEL_ID || 'gpt-4-turbo'}`, 
+        '-e', `AWS_ACCESS_KEY_ID=${process.env.AWS_ACCESS_KEY_ID || ''}`,
+        '-e', `AWS_SECRET_ACCESS_KEY=${process.env.AWS_SECRET_ACCESS_KEY || ''}`,
+        '-e', `AWS_SESSION_TOKEN=${process.env.AWS_SESSION_TOKEN || ''}`,
+        '-e', `AWS_REGION=${process.env.AWS_REGION || 'us-east-1'}`,
+        // Fix per l'host: permette a Docker di vedere "host.docker.internal" su Linux/Docker Compose
+        '--add-host', 'host.docker.internal:host-gateway', 
+        // Fix import python
+        '-e', 'PYTHONPATH=/app',
+        
+        'poc-agents', // Nome della tua immagine Docker
+        
+        // Argomenti richiesti dal nuovo orchestrator.py:
+        repoURL,           // sys.argv[1]
+        'tmp/analysis',    // sys.argv[2]
+        '',                // sys.argv[3] (permitted_words - opzionale)
+        'it_IT,en_US'      // sys.argv[4] (languages - opzionale)
       ]);
 
-      let output = '';
-      let errorLog = '';
-
-      runAnalyzerAgent.stdout.on('data', (data: any) => {
-        const chunk = data.toString();
-        // Logghiamo solo se non è il JSON finale per pulizia
-        if (!chunk.trim().startsWith('{'))
-          console.log(`[Docker]: ${chunk.trim()}`);
-        output += chunk;
+      // Logghiamo stdout per debug (Python stampava i Timer su stderr)
+      runAnalyzerAgent.stdout.on('data', (data) => {
+          const msg = data.toString().trim();
+          if (msg) console.log(`[Docker Agent]: ${msg}`);
       });
 
-      runAnalyzerAgent.stderr.on('data', (data: any) => {
-        errorLog += data.toString();
-        // Alcuni log normali finiscono in stderr, li stampiamo per debug
-        console.error(`[Docker Log]: ${data.toString().trim()}`);
+      // Logghiamo stderr (dove Python stampa i print di default e gli errori)
+      runAnalyzerAgent.stderr.on('data', (data) => {
+          const msg = data.toString().trim();
+          if (msg) console.error(`[Docker Stderr]: ${msg}`);
       });
 
-      runAnalyzerAgent.on('close', (code: number | null) => {
+      runAnalyzerAgent.on('error', (err) => {
+          reject(err);
+      });
+
+      runAnalyzerAgent.on('close', (code) => {
         if (code === 0) {
-          try {
-            // Cerchiamo l'inizio del JSON (nel caso ci siano log prima)
-            const jsonStartIndex = output.indexOf('{');
-            const jsonPart = output.substring(jsonStartIndex);
-            const agentResponse = JSON.parse(jsonPart);
-
-            const analysisResult: AnalysisResult = {
-              status: 'success',
-              repositoryURL: repoURL,
-              findings: agentResponse,
-              timestamp: new Date().toISOString(),
-              mongodb_run_id: agentResponse.mongodb_run_id, // Prendiamo l'ID da Python
-            };
-
-            this.saveReport(analysisResult);
-            this.logger.log(
-              `✅ Analisi conclusa. RunID: ${analysisResult.mongodb_run_id}`,
-            );
-            resolve(analysisResult);
-          } catch (e) {
-            this.logger.error("L'output dell'agente non è un file JSON valido");
-            console.error('Output ricevuto:', output);
-            reject(
-              new Error(
-                "Errore durante la formattazione dei dati dell'analisi",
-              ),
-            );
-          }
+            this.logger.log(`✅ Docker terminato con successo (Python ha inviato i dati al Webhook)`);
+            resolve();
         } else {
-          this.logger.error(
-            `Docker fallito. Codice: ${code} | Err: ${errorLog}`,
-          );
-          reject(new Error(`Errore durante l'analisi`));
+            this.logger.warn(`⚠️ Docker terminato con codice ${code} (Controlla i log per errori)`);
+            reject(new Error(`Docker exited with code ${code}`));
         }
       });
     });

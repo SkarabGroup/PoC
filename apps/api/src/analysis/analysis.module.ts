@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AnalysisController } from './analysis.controller';
 import { AnalysisService } from './analysis.service';
+import { User, UserSchema } from '../users/schemas/user.schema';
 import { Project, ProjectSchema } from '../project.schema';
 import {
   OrchestratorRun,
@@ -11,6 +12,7 @@ import {
 @Module({
   imports: [
     MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
       { name: Project.name, schema: ProjectSchema },
       { name: OrchestratorRun.name, schema: OrchestratorRunSchema },
     ]),

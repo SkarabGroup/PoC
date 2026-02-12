@@ -86,7 +86,6 @@ services:
       mongodb:
         condition: service_healthy
     environment:
-      - MONGO_URI=mongodb://mongodb:27017/agenti_db
       - USE_MOCK_ANALYSIS=${USE_MOCK_ANALYSIS:-true}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
