@@ -138,6 +138,49 @@ export class AnalysisService {
   }
 
   /**
+   * Validates AWS credentials when USE_MOCK_ANALYSIS=false
+   * Throws BadRequestException if credentials are missing or model ID is invalid
+   */
+  private validateAwsCredentials(): void {
+    const useMock = process.env.USE_MOCK_ANALYSIS === 'true';
+
+    // Skip validation in mock mode
+    if (useMock) {
+      return;
+    }
+
+    // Check AWS credentials presence
+    const awsAccessKey = process.env.AWS_ACCESS_KEY_ID;
+    const awsSecretKey = process.env.AWS_SECRET_ACCESS_KEY;
+    const modelId = process.env.AGENT_MODEL_ID;
+
+    if (!awsAccessKey || awsAccessKey.trim() === '') {
+      throw new BadRequestException({
+        code: 'MISSING_AWS_CREDENTIALS',
+        message: 'AWS_ACCESS_KEY_ID is required when USE_MOCK_ANALYSIS=false',
+      });
+    }
+
+    if (!awsSecretKey || awsSecretKey.trim() === '') {
+      throw new BadRequestException({
+        code: 'MISSING_AWS_CREDENTIALS',
+        message: 'AWS_SECRET_ACCESS_KEY is required when USE_MOCK_ANALYSIS=false',
+      });
+    }
+
+    // Validate Bedrock model ARN format
+    if (!modelId || !modelId.startsWith('arn:aws:bedrock:')) {
+      throw new BadRequestException({
+        code: 'INVALID_BEDROCK_MODEL',
+        message: 'AGENT_MODEL_ID must be a valid AWS Bedrock ARN (e.g., arn:aws:bedrock:...)',
+        hint: 'Check .env.example for correct format',
+      });
+    }
+
+    this.logger.log('✅ AWS credentials validated successfully');
+  }
+
+  /**
    * Avvia l'analisi in background.
    * 1. Crea il record nel DB in stato 'pending'.
    * 2. Lancia il processo Docker (Fire-and-Forget).
@@ -148,6 +191,10 @@ export class AnalysisService {
 
     // Validazione e recupero ID
     const { repoName } = this.validateURL(repoURL);
+
+    // Validazione AWS credentials (se non in mock mode)
+    this.validateAwsCredentials();
+
     const userId = await this.getOrCreateUser(email);
     const projectId = await this.getOrCreateProject(userId, repoURL, repoName);
 
@@ -193,13 +240,14 @@ export class AnalysisService {
         '--rm',
         // Fondamentale: Passiamo l'ID a Python così può chiamare il Webhook
         '-e', `ANALYSIS_ID=${runId}`,
-        '-e', `AGENT_MODEL_ID=${process.env.AGENT_MODEL_ID || 'gpt-4-turbo'}`, 
+        '-e', `USE_MOCK_ANALYSIS=${process.env.USE_MOCK_ANALYSIS || 'true'}`,
+        '-e', `AGENT_MODEL_ID=${process.env.AGENT_MODEL_ID || 'gpt-4-turbo'}`,
         '-e', `AWS_ACCESS_KEY_ID=${process.env.AWS_ACCESS_KEY_ID || ''}`,
         '-e', `AWS_SECRET_ACCESS_KEY=${process.env.AWS_SECRET_ACCESS_KEY || ''}`,
         '-e', `AWS_SESSION_TOKEN=${process.env.AWS_SESSION_TOKEN || ''}`,
         '-e', `AWS_REGION=${process.env.AWS_REGION || 'us-east-1'}`,
         // Fix per l'host: permette a Docker di vedere "host.docker.internal" su Linux/Docker Compose
-        '--add-host', 'host.docker.internal:host-gateway', 
+        '--add-host', 'host.docker.internal:host-gateway',
         // Fix import python
         '-e', 'PYTHONPATH=/app',
         

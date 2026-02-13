@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AnalysisController } from './analysis.controller';
 import { AnalysisService } from './analysis.service';
+import { AnalysisGateway } from './gateways/analysis.gateway';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Project, ProjectSchema } from '../project.schema';
 import {
@@ -18,7 +19,7 @@ import {
     ]),
   ],
   controllers: [AnalysisController],
-  providers: [AnalysisService],
+  providers: [AnalysisService, AnalysisGateway],
   exports: [AnalysisService],
 })
 export class AnalysisModule {}

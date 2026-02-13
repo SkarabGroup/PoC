@@ -4,6 +4,8 @@ import { Repository } from '../types';
 import { RemediationSection } from './RemediationSection';
 import { HistorySection } from './HistorySection';
 import { repositoriesApi } from '../services/api';
+import { useAnalysisSocket } from '../hooks/useAnalysisSocket';
+import { toast } from 'sonner';
 
 interface RepositoryDetailProps {
   repository: Repository;
@@ -16,23 +18,65 @@ export function RepositoryDetail({ repository: initialRepo }: RepositoryDetailPr
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [isAnalyzing, setIsAnalyzing] = useState(repository.lastAnalysis?.status === 'in-progress');
+  const { socket, isConnected } = useAnalysisSocket();
 
   // Load full repository details when component mounts
-  useEffect(() => {
-    const loadRepositoryDetails = async () => {
-      setLoading(true);
-      try {
-        const fullRepo = await repositoriesApi.getOne(initialRepo.id);
-        setRepository(fullRepo);
-      } catch (error) {
-        console.error('Error loading repository details:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadRepositoryDetails = async () => {
+    setLoading(true);
+    try {
+      const fullRepo = await repositoriesApi.getOne(initialRepo.id);
+      setRepository(fullRepo);
+    } catch (error) {
+      console.error('Error loading repository details:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadRepositoryDetails();
   }, [initialRepo.id]);
+
+  // Listen to WebSocket events for real-time updates
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('analysis:complete', (data) => {
+      console.log('[Socket] Analysis completed:', data);
+
+      toast.success('Analysis completed!', {
+        description: `Quality: ${data.summary.qualityScore || 'N/A'} | Security: ${data.summary.securityScore || 'N/A'}`,
+        duration: 5000
+      });
+
+      // Stop analyzing state and reload repository data
+      setIsAnalyzing(false);
+      loadRepositoryDetails();
+    });
+
+    socket.on('analysis:failed', (data) => {
+      console.error('[Socket] Analysis failed:', data);
+
+      toast.error('Analysis failed', {
+        description: data.error,
+        duration: 5000
+      });
+
+      // Stop analyzing state
+      setIsAnalyzing(false);
+    });
+
+    socket.on('analysis:progress', (data) => {
+      console.log('[Socket] Analysis progress:', data);
+      // Optional: Update progress indicator
+    });
+
+    return () => {
+      socket.off('analysis:complete');
+      socket.off('analysis:failed');
+      socket.off('analysis:progress');
+    };
+  }, [socket]);
 
   const handleStartAnalysis = () => {
     setIsAnalyzing(true);
@@ -91,8 +135,14 @@ export function RepositoryDetail({ repository: initialRepo }: RepositoryDetailPr
           <div>
             <h1 className="text-[#2e3338] mb-2">{repository.name}</h1>
             <p className="text-[#73787e]">{repository.description}</p>
+            {isConnected && (
+              <div className="flex items-center gap-2 text-sm text-green-600 mt-2">
+                <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse" />
+                Real-time updates active
+              </div>
+            )}
           </div>
-          
+
           <div className="flex gap-2">
             <button
               onClick={handleExport}

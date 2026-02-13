@@ -1,14 +1,16 @@
-import { 
-  Body, 
-  Controller, 
-  Post, 
-  Get, 
-  UseGuards, 
-  Query, 
-  Logger, 
-  NotFoundException 
+import {
+  Body,
+  Controller,
+  Post,
+  Get,
+  UseGuards,
+  Query,
+  Logger,
+  NotFoundException,
+  HttpCode
 } from '@nestjs/common';
 import { AnalysisService } from './analysis.service';
+import { AnalysisGateway } from './gateways/analysis.gateway';
 import { CreateAnalysisDto } from '../dto/create-analysis.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -23,6 +25,7 @@ export class AnalysisController {
 
   constructor(
     private readonly analysis: AnalysisService,
+    private readonly analysisGateway: AnalysisGateway,
     @InjectModel(OrchestratorRun.name) private runModel: Model<OrchestratorRun>,
     @InjectModel(Project.name) private projectModel: Model<Project>,
   ) {}
@@ -73,35 +76,61 @@ export class AnalysisController {
   }
 
   @Post('webhook')
+  @HttpCode(200)
   async handleWebhook(@Body() result: any) {
     this.logger.log(`📥 Webhook ricevuto da Python. ID Analisi: ${result.analysis_id}`);
-    
+
     if (!result.analysis_id) {
         this.logger.error('Webhook ricevuto senza analysis_id');
         return { ok: false };
     }
 
-    // Aggiorna il record nel DB con i risultati veri
-    const updated = await this.runModel.findByIdAndUpdate(
+    try {
+      // Aggiorna il record nel DB con i risultati veri
+      const updated = await this.runModel.findByIdAndUpdate(
+          result.analysis_id,
+          {
+              status: result.summary ? 'completed' : 'error',
+              orchestrator_summary: result.summary || {},
+              spell_agent_details: result.spelling_analysis || [],
+              metadata: {
+                  ...result.execution_metrics,
+                  updated_at: new Date()
+              }
+          },
+          { new: true }
+      );
+
+      if (!updated) {
+          throw new NotFoundException(`Analysis ID ${result.analysis_id} not found`);
+      }
+
+      // Emetti evento WebSocket per notifica real-time
+      if (result.summary) {
+        this.analysisGateway.notifyAnalysisComplete(
+          result.analysis_id,
+          result.summary
+        );
+      } else {
+        this.analysisGateway.notifyAnalysisFailed(
+          result.analysis_id,
+          result.error || 'Unknown error occurred'
+        );
+      }
+
+      this.logger.log(`✅ Risultati salvati per Run ID: ${result.analysis_id}`);
+      return { ok: true };
+    } catch (error) {
+      this.logger.error(`❌ Errore nel webhook handler: ${error.message}`);
+
+      // Notifica errore via WebSocket
+      this.analysisGateway.notifyAnalysisFailed(
         result.analysis_id,
-        {
-            status: result.summary ? 'completed' : 'error',
-            orchestrator_summary: result.summary || {},
-            spell_agent_details: result.spelling_analysis || [],
-            metadata: {
-                ...result.execution_metrics, 
-                updated_at: new Date()
-            }
-        },
-        { new: true }
-    );
+        error.message
+      );
 
-    if (!updated) {
-        throw new NotFoundException(`Analysis ID ${result.analysis_id} not found`);
+      throw error;
     }
-
-    this.logger.log(`✅ Risultati salvati per Run ID: ${result.analysis_id}`);
-    return { ok: true };
   }
 
   @Get('history')

@@ -7,9 +7,44 @@ import sys
 import os
 import json
 import time
+import requests
+from datetime import datetime
 from dotenv import load_dotenv
-from tools.orchestratorTools import cloneRepository
-from database.mongodb_manager import MongoDBManager
+from tools.orchestratorTools import clone_repo_tool
+
+def send_webhook(analysis_id: str, results: dict):
+    """Send webhook notification to backend server"""
+    webhook_url = 'http://host.docker.internal:3000/analysis/webhook'
+
+    if not analysis_id:
+        print("⚠️  No ANALYSIS_ID provided, skipping webhook", file=sys.stderr)
+        return
+
+    payload = {
+        'analysis_id': analysis_id,
+        'summary': results.get('orchestrator_summary'),
+        'spelling_analysis': results.get('spell_agent_details'),
+        'execution_metrics': {
+            'completed_at': datetime.now().isoformat(),
+            'mongodb_run_id': results.get('mongodb_run_id')
+        }
+    }
+
+    try:
+        print(f"DEBUG: Sending webhook to {webhook_url}...", file=sys.stderr)
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        response.raise_for_status()
+        print(f"✅ Webhook sent successfully to {webhook_url}", file=sys.stderr)
+        print(f"DEBUG: Webhook response: {response.status_code} - {response.text}", file=sys.stderr)
+    except Exception as e:
+        print(f"❌ Failed to send webhook: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
 
 def main():
     # 1. Carica variabili d'ambiente
@@ -25,24 +60,16 @@ def main():
     temp_path = sys.argv[2]
     user_email = sys.argv[3] if len(sys.argv) > 3 else 'unknown@docker.com'
 
-    mongo = None
+    # Get ANALYSIS_ID from environment variable
+    analysis_id = os.getenv('ANALYSIS_ID')
+    print(f"DEBUG: ANALYSIS_ID from env: {analysis_id}", file=sys.stderr)
 
     try:
         print(f"DEBUG: [MOCK MODE] Processing User: {user_email}", file=sys.stderr)
 
-        # 3. INIZIALIZZA MONGO
-        mongo = MongoDBManager()
-
-        # 4. RECUPERA/CREA UTENTE E PROGETTO
-        userId = mongo.get_or_create_user(user_email)
-        projectId = mongo.get_or_create_project(userId, repo_url)
-
-        # 5. CLONE REPOSITORY
-        print(f"DEBUG: Cloning repository {repo_url}...", file=sys.stderr)
-        cloned = cloneRepository(repo_url, temp_path)
-        if not cloned:
-            print(f"CRITICAL ERROR: Failed to clone repository {repo_url}", file=sys.stderr)
-            sys.exit(1)
+        # SKIP MongoDB - backend will handle DB via webhook
+        # SKIP CLONE - not needed for mock, just simulate analysis
+        print(f"DEBUG: Skipping repository clone for mock...", file=sys.stderr)
 
         # 6. SIMULA ANALISI (senza AWS)
         print("DEBUG: [MOCK] Running simulated analysis...", file=sys.stderr)
@@ -139,37 +166,36 @@ def main():
             }
         }
 
-        # 8. SALVA SU MONGODB
-        print(f"DEBUG: Saving results to MongoDB...", file=sys.stderr)
-        run_id = mongo.save_orchestrator_run(repo_url, result, userId=userId, projectId=projectId)
-        print(f"Results saved to MongoDB with run_id: {run_id}", file=sys.stderr)
-
-        # Save individual tool executions
-        for tool_exec in mock_spell_result.get("tool_executions", []):
-            mongo.save_tool_execution(
-                run_id=run_id,
-                tool_name=tool_exec.get("tool"),
-                tool_input=tool_exec.get("input"),
-                result=tool_exec.get("result")
-            )
-        mongo.update_last_check(projectId)
-
-        # 9. OUTPUT FINALE
-        result['mongodb_run_id'] = run_id
-        result['userId'] = userId
-        result['projectId'] = projectId
-
-        print(json.dumps(result, indent=2))
+        # 8. SEND WEBHOOK (skip MongoDB, backend handles it)
         print(f"DEBUG: [MOCK] Analysis completed successfully", file=sys.stderr)
+
+        if analysis_id:
+            send_webhook(analysis_id, result)
+        else:
+            print("WARNING: No ANALYSIS_ID found, webhook not sent", file=sys.stderr)
 
     except Exception as e:
         print(f"CRITICAL ERROR: {str(e)}", file=sys.stderr)
         import traceback
         traceback.print_exc(file=sys.stderr)
+
+        # Try to send failure webhook
+        if analysis_id:
+            try:
+                webhook_url = 'http://host.docker.internal:3000/analysis/webhook'
+                error_payload = {
+                    'analysis_id': analysis_id,
+                    'summary': None,
+                    'error': str(e),
+                    'execution_metrics': {
+                        'failed_at': datetime.now().isoformat()
+                    }
+                }
+                requests.post(webhook_url, json=error_payload, timeout=5)
+            except:
+                pass
+
         sys.exit(1)
-    finally:
-        if mongo:
-            mongo.close()
 
 if __name__ == "__main__":
     main()

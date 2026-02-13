@@ -79,6 +79,7 @@ services:
 
   # ── Python Agents ─────────────────────────────────────────
   agents:
+    image: poc-agents
     build:
       context: ./apps/agents
       dockerfile: Dockerfile.agents
