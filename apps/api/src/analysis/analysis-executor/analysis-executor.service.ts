@@ -14,10 +14,15 @@ export class AnalysisExecutorService {
     }
 
     private startDockerAnalysis(repoOwner: string, repoName: string, analysisId: string) : void {
+        const variablesToPass = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'AGENT_MODEL_ID'];
+        const envFlags = variablesToPass.flatMap(key => ['-e', `${key}=${process.env[key]}`]);
+
         const container = spawn('docker', [
             'run',
             '--rm',
-            '--env-file', '../agents/.env',
+            '--network', 'host',
+            '--name', `analysis-${analysisId}`,
+            ...envFlags,
             '-e', `ANALYSIS_ID=${analysisId}`,
             'analyzer-agent:latest',
             `https://github.com/${repoOwner}/${repoName}`,
@@ -40,6 +45,6 @@ export class AnalysisExecutorService {
     }
 
     private startAWSAnalysis(repoOwner: string, repoName: string, analysisId: string) : void {
-        
+        console.log('Analysis Started using only AWS');
     }
 }

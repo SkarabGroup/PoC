@@ -12,6 +12,7 @@ export class AppController {
 
   @Get('health') 
   health() {
+    console.log("[Sistema]: Il server è attivo e ha ricevuto una status request")
     return { ok: true };      
   }
 }

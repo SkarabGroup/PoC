@@ -1,15 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AnalysisGateway } from './gateway/analysis.gateway';
 
 @Injectable()
 export class AnalysisResultHandlerService {
   private readonly logger = new Logger(AnalysisResultHandlerService.name);
   private readonly resultsPath = path.join(process.cwd(), 'analysisResults');
 
-  constructor(private readonly gateway: AnalysisGateway) {
-    // Crea la cartella se non esiste all'avvio
+  constructor() {
     if (!fs.existsSync(this.resultsPath)) {
       fs.mkdirSync(this.resultsPath);
     }
@@ -28,9 +26,6 @@ export class AnalysisResultHandlerService {
 
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     this.logger.log(`File salvato in: ${filePath}`);
-
-    // 2. Notifica via WebSocket
-    this.gateway.notifyCompletion(analysisId, summary);
     
     return data;
   }

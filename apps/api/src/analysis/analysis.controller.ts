@@ -18,11 +18,6 @@ export class AnalysisController {
 
     @Post('webhook')
     public async handleWebhook(@Body() results: any) {
-        // 1. Log di debug per vedere cosa arriva dal Python
-        console.log('[Webhook] Dati ricevuti dal container:', results);
-
-        // 2. Estrazione dell'ID (assicurati che il Python lo invii o passalo come parametro)
-        // Se il Python invia { "analysisId": "...", "summary": {...} }
         const { analysis_id, ...summary } = results;
 
         if (!analysis_id) {
