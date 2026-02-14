@@ -1,54 +1,31 @@
 # PoC
 Repository specifica per il codice del PoC per il progetto code guardian
 
-API:
+
+Per avviare l'applicazione:
 ```bash
-cd apps/api && npm run start:dev
-curl -X GET http://localhost:3000/health
+docker compose -f infra/compose/docker-compose.yml --build
+```
+Da qui, vengono create le immagini di analyzer-agent e di server.
+Server viene poi containerizzato e rimane in ascolto su localhost:3000
+
+Per verificare che il server sia correttamente attivo:
+```bash
+curl -X GET http://locahost:3000/health
+```
+Se tutto funziona, viene restituito ```ok true``` e dai log del server 
+comparirà un messaggio:
+```bash
+[Sistema]: Il server è attivo e ha ricevuto una status request
 ```
 
-Test:
+Per avviare una analisi:
 ```bash
-curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"repoURL": "https://github.com/Poian3k/TeXeneratorGUI"}'
+curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"repoURL": "https://github.com/SkarabGroup/PoC_test_repo"}'
 ```
-Dovrebbe restituire:
-```bash
+e dal server vengono visualizzati i log delle operazioni.
 
-```
-
-Provare anche:
+Per recuperare il risultato:
 ```bash
-curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"repoURL": "https://github.com/bimbumbam/bambumbim"}'
-curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{}'
-```
-
-Se tutto funziona:
-```bash
-cd infra/compose
-docker compose up -d
-```
-
-Se genera un errore legato alle credenziali:
-```bash
-nano ~/.docker/config.json
-```
-e rimuovere la riga:
-```bash
-"credsStore": "desktop"
-= .env
-In .env.example é espressa la struttura del .env
-
-3. Installare pymongo
-```bash
-pip install pymongo
-```
-
-4. Avviare MongoDB
-localmente
-```bash
-sudo systemctl start mongodb (su ubuntu/debian)
-```
-con docker
-```bash
-docker run -d -p 27017:27017 --name mongodb mongo:latest 
+curl -X GET http://localhost:3000/analysis/report/id_analisi
 ```
