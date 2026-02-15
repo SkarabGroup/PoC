@@ -1,7 +1,3 @@
-# PoC
-Repository specifica per il codice del PoC per il progetto code guardian
-
-
 Per avviare l'applicazione:
 ```bash
 docker compose -f infra/compose/docker-compose.yml --build

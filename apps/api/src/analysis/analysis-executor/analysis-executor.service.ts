@@ -16,7 +16,6 @@ export class AnalysisExecutorService {
     private startDockerAnalysis(repoOwner: string, repoName: string, analysisId: string) : void {
         const variablesToPass = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'AGENT_MODEL_ID'];
         const envFlags = variablesToPass.flatMap(key => ['-e', `${key}=${process.env[key]}`]);
-
         const container = spawn('docker', [
             'run',
             '--rm',
@@ -29,7 +28,7 @@ export class AnalysisExecutorService {
             'temp/'
         ]);
 
-        container.stderr.on('data', (data) =>{
+        container.stderr.on('data', (data) => {
             console.log(`[AGENT ERROR in Analysis ${analysisId}]: ${data.toString().trim()}`)
         });
 
