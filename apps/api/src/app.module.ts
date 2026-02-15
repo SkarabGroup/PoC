@@ -12,6 +12,7 @@ import { RepositoriesModule } from './repositories/repositories.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '.env'
     }),
 
     AuthModule,
