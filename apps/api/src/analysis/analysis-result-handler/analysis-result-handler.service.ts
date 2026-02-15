@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Analysis, AnalysisStatus } from 'src/database/analysis.schema';
@@ -8,7 +8,7 @@ import { Repository } from 'src/database/repository.schema';
 export class AnalysisResultHandlerService {
  constructor(
     @InjectModel(Analysis.name) private analysisModel: Model<Analysis>,
-    @InjectModel(Repository.name) private repositoryModel: Model<Repository>, // <-- Aggiungi questa riga
+    @InjectModel(Repository.name) private repositoryModel: Model<Repository>,
     private readonly logger: Logger,
   ) {} 
   
@@ -34,8 +34,8 @@ export class AnalysisResultHandlerService {
     
     if (updatedAnalysis && updatedAnalysis.repositoryId) {
         await this.repositoryModel.findByIdAndUpdate(updatedAnalysis.repositoryId._id, {
-            $inc: { analysisCount: 1 },        // Incrementa il contatore
-            $set: { lastAnalyzed: new Date() } // Aggiorna l'ultima analisi a "ora"
+            $inc: { analysisCount: 1 },
+            $set: { lastAnalyzed: new Date() }
         });
     }
 
