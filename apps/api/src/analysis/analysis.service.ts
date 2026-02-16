@@ -9,11 +9,10 @@ import { GithubCommunicatorService } from 'src/common/github-communicator/github
 import { ValidationService } from 'src/common/validation/validation.service';
 import { AnalysisExecutorService } from './analysis-executor/analysis-executor.service';
 
-import { Analysis, AnalysisDocument } from 'src/database/analysis.schema';
+import { Analysis, AnalysisDocument, AnalysisStatus } from 'src/database/analysis.schema';
 import { Repository, RepositoryDocument } from 'src/database/repository.schema';
 import { User } from 'src/database/users.schema';
 import { Project } from '../project.schema';
-import { OrchestratorRun } from '../orchestrator-run.schema';
 
 @Injectable()
 export class AnalysisService {
@@ -24,125 +23,153 @@ export class AnalysisService {
     @InjectModel(Repository.name) private repositoryModel: Model<RepositoryDocument>,
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Project.name) private projectModel: Model<Project>,
-    @InjectModel(OrchestratorRun.name) private runModel: Model<OrchestratorRun>,
     private readonly configuration: ConfigService,
     private readonly validationService: ValidationService,
     private readonly githubCommunicatorService: GithubCommunicatorService,
     private readonly analysisRunner: AnalysisExecutorService,
   ) {}
 
-  public async analyzeRepository(URL: string, userId: string, email: string) {
-    // 1. Validazione Input
-    if (!userId || !Types.ObjectId.isValid(userId)) {
-      throw new UnauthorizedException('UserId non valido');
-    }
-
-    const { repoOwner, repoName } = this.validationService.validateURL(URL);
-    this.logger.log(`URL validato per GitHub: ${repoOwner}/${repoName}`);
-
-    // 2. Controllo esistenza su GitHub
-    const existRepository = await this.githubCommunicatorService.checkIfRepositoryExists(repoOwner, repoName);
-    if (!existRepository) {
-      this.logger.error(`Repository ${repoOwner}/${repoName} non trovata su GitHub`);
-      throw new NotFoundException('Repository non trovata su GitHub');
-    }
-
-    // 3. Recupero o creazione entità correlate
-    await this.findOrCreateRepository(repoOwner, repoName, URL);
-    const projectId = await this.getOrCreateProject(userId, URL, repoName);
-
-    // 4. Inizializzazione Identificativi e Configurazione
-    const analysisId = uuidv4();
-    const analysisMethod = this.configuration.get('ANALYSIS_METHOD');
-
-    // 5. Creazione Record della Run (Stato iniziale: pending)
-    const newRun = await this.runModel.create({
-      userId,
-      projectId,
-      repository: URL,
-      status: 'pending',
-      metadata: {
-        created_at: new Date(),
-        user_email: email,
-        triggered_by: 'orchestrator_v2',
-        analysis_uuid: analysisId
+    public async analyzeRepository(URL: string, userId: string, email: string) {
+      // 1. Validazione Input
+      if (!userId || !Types.ObjectId.isValid(userId)) {
+        throw new UnauthorizedException('UserId non valido');
       }
+
+      const { repoOwner, repoName } = this.validationService.validateURL(URL);
+      this.logger.log(`URL validato per GitHub: ${repoOwner}/${repoName}`);
+
+      // 2. Controllo esistenza su GitHub
+      const existRepository = await this.githubCommunicatorService.checkIfRepositoryExists(repoOwner, repoName);
+      if (!existRepository) {
+        this.logger.error(`Repository ${repoOwner}/${repoName} non trovata su GitHub`);
+        throw new NotFoundException('Repository non trovata su GitHub');
+      }
+
+      // 3. Recupero o creazione entità correlate
+      // Assicurati che findOrCreateRepository restituisca l'oggetto repository completo
+      const repository = await this.findOrCreateRepository(repoOwner, repoName, URL, userId);
+      const projectId = await this.getOrCreateProject(userId, URL, repoName);
+
+      // 4. Inizializzazione Identificativi e Configurazione
+      const analysisUuid = uuidv4(); // Questo è l'ID che passeremo a Docker/AWS
+      const analysisMethod = this.configuration.get('ANALYSIS_METHOD');
+
+      // 5. Creazione Record Unico su Analysis (Stato iniziale: pending)
+      const newAnalysis = await this.analysisModel.create({
+        analysisId: analysisUuid, // UUID per il matching del webhook
+        userId: new Types.ObjectId(userId),
+        repositoryId: repository._id,
+        projectId: new Types.ObjectId(projectId),
+        status: AnalysisStatus.PENDING,
+        metadata: {
+          user_email: email,
+          triggered_by: 'orchestrator_v2',
+          docker_image: 'analyzer-agent:latest'
+        }
+      });
+
+  this.logger.log(`Record analisi creato con UUID: ${analysisUuid}. Metodo: ${analysisMethod}`);
+
+  // 6. Avvio effettivo dell'analisi (Asincrono)
+  try {
+    // IMPORTANTE: Passiamo l'UUID (analysisUuid) all'esecutore, 
+    // così il webhook saprà a quale record riferirsi.
+    this.analysisRunner.startAnalysis(String(analysisMethod), repoOwner, repoName, analysisUuid);
+    
+    // Aggiorniamo lo stato a RUNNING
+    await newAnalysis.updateOne({ status: AnalysisStatus.RUNNING });
+    
+  } catch (error) {
+    this.logger.error(`Errore durante l'avvio dell'analisi: ${error.message}`);
+    await newAnalysis.updateOne({ 
+      status: AnalysisStatus.FAILED, 
+      errorMessage: error.message 
     });
-
-    this.logger.log(`Run creata nel DB con ID: ${newRun._id} - Avvio Docker...`);
-
-    // 6. Avvio effettivo dell'analisi (Asincrono)
-    try {
-      this.analysisRunner.startAnalysis(String(analysisMethod), repoOwner, repoName, analysisId);
-      
-      // Aggiorniamo la run a RUNNING
-      await this.runModel.findByIdAndUpdate(newRun._id, { status: 'running' });
-    } catch (error) {
-      this.logger.error(`Errore durante l'avvio dell'analisi: ${error.message}`);
-      await this.runModel.findByIdAndUpdate(newRun._id, { status: 'error' });
-      throw error;
-    }
-
-    return {
-      status: 'ok',
-      analysisId: analysisId,
-      runId: newRun._id,
-      message: `Analisi di ${repoOwner}/${repoName} avviata correttamente`
-    };
+    throw error;
   }
 
-  private async findOrCreateRepository(repoOwner: string, repoName: string, repoUrl: string): Promise<RepositoryDocument> {
-    const fullName = `${repoOwner}/${repoName}`;
-    let repository = await this.repositoryModel.findOne({ fullName });
+  return {
+    status: 'ok',
+    analysisId: analysisUuid,
+    internalId: newAnalysis._id,
+    message: `Analisi di ${repoOwner}/${repoName} avviata correttamente`
+  };
+}
 
-    if (!repository) {
-      repository = await this.repositoryModel.create({
-        repoOwner,
-        repoName,
-        fullName,
-        repoUrl,
-        analysisCount: 0
-      });
-      this.logger.log(`Nuova repository ${fullName} aggiunta al database`);
+    private async findOrCreateRepository(
+      repoOwner: string, 
+      repoName: string, 
+      repoUrl: string, 
+      userId: string
+    ): Promise<RepositoryDocument> {
+      const fullName = `${repoOwner}/${repoName}`;
+      let repository = await this.repositoryModel.findOne({ fullName });
+
+      if (!repository) {
+        // Usiamo un oggetto esplicito per bypassare l'overload rigido
+        const newRepoData = {
+          repoOwner,
+          repoName,
+          fullName,
+          repoUrl,
+          userId: new Types.ObjectId(userId),
+          analysisCount: 0
+        };
+
+        // Il cast 'as any' qui risolve l'errore "No overload matches"
+        repository = await this.repositoryModel.create(newRepoData as any);
+        this.logger.log(`Nuova repository ${fullName} aggiunta al database`);
+      }
+      return repository;
     }
-    return repository;
+async getOrCreateUser(email: string): Promise<string> {
+  let user = await this.userModel.findOne({ email }).exec();
+
+  if (!user) {
+    const username = email.split('@')[0];
+    const passwordHash = await bcrypt.hash('ANALYSIS_USER_NO_LOGIN_' + Date.now(), 10);
+    
+    user = await this.userModel.create({
+      username,
+      email,
+      passwordHash,
+      notificationsEnabled: true,
+      criticalIssuesNotifications: true,
+    });
+    this.logger.log(`Creato utente per analisi: ${email}`);
   }
 
-  async getOrCreateUser(email: string): Promise<string> {
-    let user = await this.userModel.findOne({ email }).exec();
+  return user._id.toString(); // Rimosso (user as any) se usi UserDocument
+}
 
-    if (!user) {
-      const username = email.split('@')[0];
-      const passwordHash = await bcrypt.hash('ANALYSIS_USER_NO_LOGIN_' + Date.now(), 10);
-      
-      user = await this.userModel.create({
-        username,
-        email,
-        passwordHash,
-        notificationsEnabled: true,
-        criticalIssuesNotifications: true,
-      });
-      this.logger.log(`Creato utente per analisi: ${email}`);
-    }
+async getOrCreateProject(userId: string, repoUrl: string, repoName: string): Promise<string> {
+  // 1. Prepariamo l'ObjectId una volta sola
+  const userObjectId = new Types.ObjectId(userId);
 
-    return (user as any)._id.toString();
+  // 2. Cerchiamo il progetto
+  let project = await this.projectModel.findOne({ 
+    userId: userObjectId, 
+    repo_url: repoUrl 
+  }).exec();
+
+  // 3. Se non esiste, lo creiamo
+  if (!project) {
+    // Usiamo una variabile temporanea per la creazione per gestire i tipi
+    const newProject = await this.projectModel.create({
+      userId: userObjectId,
+      repo_url: repoUrl,
+      name: repoName,
+      last_check: new Date(),
+    });
+    
+    this.logger.log(`Creato nuovo progetto: ${repoName} per utente ${userId}`);
+    // Restituiamo direttamente l'ID del nuovo progetto
+    return (newProject._id as Types.ObjectId).toString();
   }
 
-  async getOrCreateProject(userId: string, repoUrl: string, repoName: string): Promise<string> {
-    let project = await this.projectModel.findOne({ userId, repo_url: repoUrl }).exec();
-
-    if (!project) {
-      project = await this.projectModel.create({
-        userId,
-        repo_url: repoUrl,
-        name: repoName,
-        last_check: new Date(),
-      });
-      this.logger.log(`Creato nuovo progetto: ${repoName} per utente ${userId}`);
-    }
-
-    return (project as any)._id.toString();
-  }
+  // 4. Restituiamo l'ID del progetto trovato
+  return (project._id as Types.ObjectId).toString();
+}
 
   public async getAnalysisById(analysisId: string) {
     const analysis = await this.analysisModel

@@ -8,10 +8,10 @@ import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
-import { User, UserDocument } from '../users/schemas/user.schema';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import { User, UserDocument } from 'src/database/users.schema';
 
 @Injectable()
 export class AuthService {
@@ -148,9 +148,7 @@ export class AuthService {
       // Update user with OAuth ID
       if (data.githubId) {
         user.githubId = data.githubId;
-      } else if (data.gitlabId) {
-        user.gitlabId = data.gitlabId;
-      }
+      } 
       await user.save();
       return user;
     }

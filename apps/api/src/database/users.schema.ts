@@ -17,9 +17,6 @@ export class User {
   @Prop({ index: true })
   githubId?: string;
 
-  @Prop({ index: true })
-  gitlabId?: string;
-
   @Prop({ default: true })
   notificationsEnabled: boolean;
 
@@ -28,9 +25,6 @@ export class User {
 
   @Prop()
   apiKey?: string;
-
-  // Timestamp fields (createdAt, updatedAt) are added automatically by { timestamps: true }
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
-

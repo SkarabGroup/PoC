@@ -1,42 +1,39 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Project } from '../project.schema';
-import { OrchestratorRun } from '../orchestrator-run.schema';
+import { Project, ProjectDocument } from '../project.schema';
+import { Analysis, AnalysisDocument, AnalysisStatus } from 'src/database/analysis.schema';
 import { CreateRepositoryDto } from './dto/create-repository.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
 
 @Injectable()
 export class RepositoriesService {
+  private readonly logger = new Logger(RepositoriesService.name);
+
   constructor(
-    @InjectModel(Project.name)
-    private projectModel: Model<Project>,
-    @InjectModel(OrchestratorRun.name)
-    private runModel: Model<OrchestratorRun>,
+    @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
+    @InjectModel(Analysis.name) private analysisModel: Model<AnalysisDocument>,
   ) {}
 
-  async create(
-    userId: string,
-    createRepositoryDto: CreateRepositoryDto,
-  ): Promise<any> {
-    const project = new this.projectModel({
+  async create(userId: string, createRepositoryDto: CreateRepositoryDto): Promise<any> {
+    const project = await this.projectModel.create({
       name: createRepositoryDto.name,
       repo_url: createRepositoryDto.url,
-      userId: userId,
+      userId: new Types.ObjectId(userId),
     });
+
     const saved = await project.save();
-    // Transform to match API expectations
     return {
       ...saved.toObject(),
       id: saved._id,
       url: saved.repo_url,
       description: createRepositoryDto.description || '',
-      createdAt: saved.created_at,
+      createdAt: (saved as any).created_at,
     };
   }
 
   async findAll(userId: string, search?: string): Promise<any[]> {
-    const query: any = { userId: userId };
+    const query: any = { userId: new Types.ObjectId(userId) };
 
     if (search) {
       query.$or = [
@@ -47,32 +44,27 @@ export class RepositoriesService {
 
     const projects = await this.projectModel.find(query).sort({ created_at: -1 });
 
-    // Enrich each repository with analysis data from OrchestratorRun collection
     const enrichedRepositories = await Promise.all(
       projects.map(async (project) => {
-        const projectId = project._id.toString();
+        const projectId = project._id;
 
-        // Get total analyses count
-        const totalAnalyses = await this.runModel.countDocuments({
-          projectId: projectId,
-        });
+        const totalAnalyses = await this.analysisModel.countDocuments({ projectId });
 
-        // Get latest analysis
-        const latestRun: any = await this.runModel
-          .findOne({ projectId: projectId })
-          .sort({ timestamp: -1 })
+        const latestRun = await this.analysisModel
+          .findOne({ projectId })
+          .sort({ createdAt: -1 })
           .lean();
 
         let lastAnalysis: any = null;
         if (latestRun) {
           lastAnalysis = {
-            id: latestRun._id,
-            date: latestRun.timestamp,
+            id: latestRun.analysisId,
+            date: latestRun.createdAt,
             status: latestRun.status,
-            report: latestRun.orchestrator_summary ? {
-              qualityScore: latestRun.orchestrator_summary.quality_score || 0,
-              securityScore: latestRun.orchestrator_summary.security_score || 0,
-              performanceScore: latestRun.orchestrator_summary.performance_score || 0,
+            report: latestRun.summary ? {
+              qualityScore: latestRun.summary.quality_score || 0,
+              securityScore: latestRun.summary.security_score || 0,
+              performanceScore: latestRun.summary.performance_score || 0,
             } : null,
           };
         }
@@ -81,9 +73,9 @@ export class RepositoriesService {
         return {
           id: projectObj._id,
           name: projectObj.name,
-          description: '', // Project schema doesn't have description
+          description: '', 
           url: projectObj.repo_url,
-          created_at: projectObj.created_at,
+          created_at: (projectObj as any).created_at,
           totalAnalyses,
           lastAnalysis,
         };
@@ -95,40 +87,32 @@ export class RepositoriesService {
 
   async findOne(id: string, userId: string): Promise<any> {
     const project = await this.projectModel.findOne({
-      _id: id,
-      userId: userId,
+      _id: new Types.ObjectId(id),
+      userId: new Types.ObjectId(userId),
     });
 
-    if (!project) {
-      throw new NotFoundException('Repository not found');
-    }
+    if (!project) throw new NotFoundException('Repository not found');
 
-    // Get analysis history for this repository
-    const runs = await this.runModel
-      .find({ projectId: id })
-      .sort({ timestamp: -1 })
+    const runs = await this.analysisModel
+      .find({ projectId: new Types.ObjectId(id) })
+      .sort({ createdAt: -1 })
       .limit(20)
       .lean()
       .exec();
 
-    const analysisHistory = runs.map((run: any) => ({
-      id: run._id,
-      date: run.timestamp,
+    const analysisHistory = runs.map((run) => ({
+      id: run.analysisId,
+      date: run.createdAt,
       status: run.status,
-      report: run.orchestrator_summary ? {
-        qualityScore: run.orchestrator_summary.quality_score || 0,
-        securityScore: run.orchestrator_summary.security_score || 0,
-        performanceScore: run.orchestrator_summary.performance_score || 0,
-        summary: run.orchestrator_summary.summary || '',
-        details: run.orchestrator_summary.details || '',
-        criticalIssues: 0,
-        warningIssues: 0,
-        infoIssues: 0,
+      report: run.summary ? {
+        qualityScore: run.summary.quality_score || 0,
+        securityScore: run.summary.security_score || 0,
+        performanceScore: run.summary.performance_score || 0,
+        summary: run.summary.summary || '',
+        details: run.details || '',
+        criticalIssues: run.summary.total_errors || 0,
       } : null,
     }));
-
-    // Get latest analysis
-    const lastAnalysis = analysisHistory.length > 0 ? analysisHistory[0] : null;
 
     const projectObj = project.toObject();
     return {
@@ -136,127 +120,84 @@ export class RepositoriesService {
       name: projectObj.name,
       description: '',
       url: projectObj.repo_url,
-      created_at: projectObj.created_at,
+      created_at: (projectObj as any).created_at,
       userId: projectObj.userId,
       totalAnalyses: analysisHistory.length,
-      lastAnalysis,
+      lastAnalysis: analysisHistory[0] || null,
       analysisHistory,
     };
   }
 
-  async update(
-    id: string,
-    userId: string,
-    updateRepositoryDto: UpdateRepositoryDto,
-  ): Promise<any> {
-    const updateData: any = {
-      name: updateRepositoryDto.name,
-    };
-    if (updateRepositoryDto.url) {
-      updateData.repo_url = updateRepositoryDto.url;
-    }
+  async update(id: string, userId: string, updateRepositoryDto: UpdateRepositoryDto): Promise<any> {
+    const updateData: any = { name: updateRepositoryDto.name };
+    if (updateRepositoryDto.url) updateData.repo_url = updateRepositoryDto.url;
 
     const project = await this.projectModel.findOneAndUpdate(
-      { _id: id, userId: userId },
+      { _id: new Types.ObjectId(id), userId: new Types.ObjectId(userId) },
       updateData,
       { new: true },
     );
 
-    if (!project) {
-      throw new NotFoundException('Repository not found');
-    }
+    if (!project) throw new NotFoundException('Repository not found');
 
     const projectObj = project.toObject();
     return {
       id: projectObj._id,
       name: projectObj.name,
-      description: updateRepositoryDto.description || '',
       url: projectObj.repo_url,
-      created_at: projectObj.created_at,
+      createdAt: (projectObj as any).created_at,
     };
   }
 
   async remove(id: string, userId: string): Promise<void> {
-    const result = await this.projectModel.deleteOne({
-      _id: id,
-      userId: userId,
-    });
+    const projectId = new Types.ObjectId(id);
+    const result = await this.projectModel.deleteOne({ _id: projectId, userId: new Types.ObjectId(userId) });
 
-    if (result.deletedCount === 0) {
-      throw new NotFoundException('Repository not found');
-    }
+    if (result.deletedCount === 0) throw new NotFoundException('Repository not found');
 
-    // Also delete all analyses for this repository
-    await this.runModel.deleteMany({
-      projectId: id,
-    });
+    await this.analysisModel.deleteMany({ projectId });
   }
 
   async getRanking(userId: string): Promise<any[]> {
-    const result = await this.projectModel.aggregate([
-      {
-        $match: { userId: userId },
-      },
+    return this.projectModel.aggregate([
+      { $match: { userId: new Types.ObjectId(userId) } },
       {
         $lookup: {
-          from: 'orchestrator_runs',
-          let: { projectId: { $toString: '$_id' } },
+          from: 'analyses', // Nome della collezione del modello Analysis
+          let: { projId: '$_id' },
           pipeline: [
-            {
-              $match: {
-                $expr: { $eq: ['$projectId', '$$projectId'] },
-                status: 'completed',
-              },
-            },
-            { $sort: { timestamp: -1 } },
+            { $match: { $expr: { $eq: ['$projectId', '$$projId'] }, status: 'completed' } },
+            { $sort: { createdAt: -1 } },
             { $limit: 1 },
           ],
           as: 'latestRun',
         },
       },
+      { $addFields: { latestRun: { $arrayElemAt: ['$latestRun', 0] } } },
       {
         $addFields: {
-          latestRun: { $arrayElemAt: ['$latestRun', 0] },
-        },
-      },
-      {
-        $addFields: {
-          qualityScore: { $ifNull: ['$latestRun.orchestrator_summary.quality_score', 0] },
-          securityScore: { $ifNull: ['$latestRun.orchestrator_summary.security_score', 0] },
-          performanceScore: { $ifNull: ['$latestRun.orchestrator_summary.performance_score', 0] },
+          qualityScore: { $ifNull: ['$latestRun.summary.quality_score', 0] },
+          securityScore: { $ifNull: ['$latestRun.summary.security_score', 0] },
+          performanceScore: { $ifNull: ['$latestRun.summary.performance_score', 0] },
           averageScore: {
             $avg: [
-              { $ifNull: ['$latestRun.orchestrator_summary.quality_score', 0] },
-              { $ifNull: ['$latestRun.orchestrator_summary.security_score', 0] },
-              { $ifNull: ['$latestRun.orchestrator_summary.performance_score', 0] },
+              { $ifNull: ['$latestRun.summary.quality_score', 0] },
+              { $ifNull: ['$latestRun.summary.security_score', 0] },
+              { $ifNull: ['$latestRun.summary.performance_score', 0] },
             ],
           },
         },
       },
-      {
-        $sort: { averageScore: -1 },
-      },
-      {
-        $project: {
-          latestRun: 0,
-        },
-      },
+      { $sort: { averageScore: -1 } },
     ]);
-
-    return result;
   }
 
   async getStats(repoId: string, userId: string) {
-    const repo = await this.findOne(repoId, userId);
+    await this.findOne(repoId, userId); // Ownership check
+    const projectId = new Types.ObjectId(repoId);
 
-    const totalRuns = await this.runModel.countDocuments({
-      projectId: repoId,
-    });
-
-    const completedRuns = await this.runModel.countDocuments({
-      projectId: repoId,
-      status: 'completed',
-    });
+    const totalRuns = await this.analysisModel.countDocuments({ projectId });
+    const completedRuns = await this.analysisModel.countDocuments({ projectId, status: 'completed' });
 
     return {
       totalRuns,
@@ -266,26 +207,21 @@ export class RepositoriesService {
   }
 
   async getRuns(repoId: string, userId: string) {
-    await this.findOne(repoId, userId); // Verifica ownership
-
-    const runs = await this.runModel
-      .find({ projectId: repoId })
-      .sort({ timestamp: -1 })
+    await this.findOne(repoId, userId); 
+    const runs = await this.analysisModel
+      .find({ projectId: new Types.ObjectId(repoId) })
+      .sort({ createdAt: -1 })
       .limit(20)
-      .lean()
-      .exec();
+      .lean();
 
-    // Transform to match frontend expectations
-    return runs.map((run: any) => ({
-      id: run._id,
-      date: run.timestamp,
+    return runs.map((run) => ({
+      id: run.analysisId,
+      date: run.createdAt,
       status: run.status,
-      report: run.orchestrator_summary ? {
-        qualityScore: run.orchestrator_summary.quality_score || 0,
-        securityScore: run.orchestrator_summary.security_score || 0,
-        performanceScore: run.orchestrator_summary.performance_score || 0,
-        summary: run.orchestrator_summary.summary || '',
-        details: run.orchestrator_summary.details || '',
+      report: run.summary ? {
+        qualityScore: run.summary.quality_score || 0,
+        summary: run.summary.summary || '',
+        details: run.details || '',
       } : null,
     }));
   }

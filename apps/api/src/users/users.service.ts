@@ -8,8 +8,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
-import { User, UserDocument } from './schemas/user.schema';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { User, UserDocument } from 'src/database/users.schema';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 
 @Injectable()
@@ -117,11 +117,6 @@ export class UsersService {
         throw new ConflictException('GitHub account is not connected');
       }
       user.githubId = undefined;
-    } else if (provider === 'gitlab') {
-      if (!user.gitlabId) {
-        throw new ConflictException('GitLab account is not connected');
-      }
-      user.gitlabId = undefined;
     }
 
     await user.save();

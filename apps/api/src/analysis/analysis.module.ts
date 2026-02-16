@@ -11,7 +11,6 @@ import { Analysis, AnalysisSchema } from 'src/database/analysis.schema';
 import { Repository, RepositorySchema } from 'src/database/repository.schema';
 import { User, UserSchema } from 'src/database/users.schema';
 import { Project, ProjectSchema } from '../project.schema';
-import { OrchestratorRun, OrchestratorRunSchema } from '../orchestrator-run.schema';
 
 @Module({
   imports: [
@@ -20,7 +19,6 @@ import { OrchestratorRun, OrchestratorRunSchema } from '../orchestrator-run.sche
       { name: Repository.name, schema: RepositorySchema },
       { name: User.name, schema: UserSchema },
       { name: Project.name, schema: ProjectSchema },
-      { name: OrchestratorRun.name, schema: OrchestratorRunSchema },
     ]),
     ValidationModule,
     GithubCommunicatorModule,

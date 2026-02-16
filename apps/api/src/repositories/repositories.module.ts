@@ -3,14 +3,13 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { RepositoriesController } from './repositories.controller';
 import { RepositoriesService } from './repositories.service';
 import { Project, ProjectSchema } from '../project.schema';
-import { OrchestratorRun, OrchestratorRunSchema } from '../orchestrator-run.schema';
 import { AnalysisModule } from '../analysis/analysis.module';
-
+import { Analysis, AnalysisSchema } from 'src/database/analysis.schema';
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Project.name, schema: ProjectSchema },
-      { name: OrchestratorRun.name, schema: OrchestratorRunSchema },
+      { name: Analysis.name, schema: AnalysisSchema }, // Cambiato qui
     ]),
     AnalysisModule,
   ],

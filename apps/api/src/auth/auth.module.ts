@@ -6,8 +6,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { User, UserSchema } from '../users/schemas/user.schema';
-
+import { User, UserSchema } from 'src/database/users.schema';
 @Module({
   imports: [
     PassportModule,

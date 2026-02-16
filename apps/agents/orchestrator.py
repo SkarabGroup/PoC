@@ -14,6 +14,10 @@ def main():
     
     load_dotenv()
     
+    region = os.getenv("AWS_REGION", "eu-north-1")
+    os.environ["AWS_DEFAULT_REGION"] = region
+    os.environ["AWS_REGION"] = region
+    
     if not os.getenv("AGENT_MODEL_ID"):
         print("ERROR: AGENT_MODEL_ID not found in .env", file=sys.stderr)
         sys.exit(1)
@@ -36,22 +40,49 @@ def main():
     try:
         # 1. Initialization of the Orchestrator with Tools
         init_start = time.time()
+        
+        # Recuperiamo l'ID analisi per iniettarlo nel prompt se necessario
+        analysis_id = os.getenv("ANALYSIS_ID", "unknown")
+        
         orchestrator = Agent(
             model=os.getenv("AGENT_MODEL_ID"),
             tools=[clone_repo_tool, analyze_spelling_tool],
-            system_prompt="""You are a Senior Software Architect. 
-            Your task is:
+            system_prompt=f"""You are a Senior Software Architect. 
+            Your goal is to perform a spelling analysis on a git repository.
+
+            EXECUTION STEPS:
             1. Clone the repository using clone_repo_tool.
-            2. Analyze the spelling using analyze_spelling_tool on the cloned path by using the specified languages.
-            3. Return the results ONLY as a valid JSON object with this structure:
-            {
-              "spelling_analysis": [...],
-              "summary": {
+            2. Scan all documents in the cloned path and check spelling errors using analyze_spelling_tool.
+            3. Aggregate all findings.
+
+            OUTPUT RULES:
+            - Return ONLY a valid JSON object.
+            - DO NOT include markdown code blocks (no ```json).
+            - DO NOT include thinking tags or preamble.
+            
+            JSON STRUCTURE:
+            {{
+              "analysisId": "{analysis_id}",
+              "status": "completed",
+              "report": {{
+                "qualityScore": number, (calculate as 100 minus total_errors, min 0)
+                "securityScore": 100,
+                "performanceScore": 100,
+                "summary": "string describing the findings",
+                "details": "stringified JSON of the spelling_analysis array",
+                "criticalIssues": number (total_errors)
+              }},
+              "spelling_analysis": [
+                {{
+                  "file_path": "string",
+                  "misspelled_words": ["word1", "word2"]
+                }}
+              ],
+              "summary": {{
                 "total_files": number,
                 "total_errors": number
-              }
-            }
-            DO NOT include any explanatory text before or after the JSON."""
+              }}
+            }}"""
         )
         init_time = time.time() - init_start
         print(f"[Timer] Orchestrator initialized in {init_time:.2f}s", file=sys.stderr)
