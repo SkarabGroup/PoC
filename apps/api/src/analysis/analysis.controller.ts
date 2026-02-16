@@ -31,7 +31,7 @@ export class AnalysisController {
     @InjectModel(OrchestratorRun.name) private runModel: Model<OrchestratorRun>,
   ) {}
 
-  @Post()
+  @Post('run')
   //@UseGuards(JwtAuthGuard)
   async runAnalysis(
     @Body() body: CreateAnalysisDto,
