@@ -26,7 +26,7 @@ export function HistorySection({ repository }: HistorySectionProps) {
       <div className="bg-white border border-[#e5e5e5] rounded-lg p-6">
         <h3 className="text-[#2e3338] mb-4">Evoluzione nel Tempo</h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="w-full">
           <div className="p-4 bg-[#fafafa] rounded-lg">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[#73787e]">Qualità del Codice</span>
@@ -35,28 +35,6 @@ export function HistorySection({ repository }: HistorySectionProps) {
             <div className="text-[#2e3338]">
               {history[0].report?.qualityScore || 0} 
               <span className="text-green-600 ml-2">+5</span>
-            </div>
-          </div>
-
-          <div className="p-4 bg-[#fafafa] rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[#73787e]">Sicurezza</span>
-              <TrendingDown className="w-4 h-4 text-red-600" />
-            </div>
-            <div className="text-[#2e3338]">
-              {history[0].report?.securityScore || 0}
-              <span className="text-red-600 ml-2">-3</span>
-            </div>
-          </div>
-
-          <div className="p-4 bg-[#fafafa] rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[#73787e]">Performance</span>
-              <Minus className="w-4 h-4 text-[#73787e]" />
-            </div>
-            <div className="text-[#2e3338]">
-              {history[0].report?.performanceScore || 0}
-              <span className="text-[#73787e] ml-2">0</span>
             </div>
           </div>
         </div>
@@ -75,10 +53,7 @@ export function HistorySection({ repository }: HistorySectionProps) {
                 <th className="px-6 py-3 text-left text-[#2e3338]">Data</th>
                 <th className="px-6 py-3 text-left text-[#2e3338]">Stato</th>
                 <th className="px-6 py-3 text-left text-[#2e3338]">Qualità</th>
-                <th className="px-6 py-3 text-left text-[#2e3338]">Sicurezza</th>
-                <th className="px-6 py-3 text-left text-[#2e3338]">Performance</th>
                 <th className="px-6 py-3 text-left text-[#2e3338]">Problemi</th>
-                <th className="px-6 py-3 text-left text-[#2e3338]">Azioni</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e5e5e5]">
@@ -103,12 +78,7 @@ export function HistorySection({ repository }: HistorySectionProps) {
                   <td className="px-6 py-4 text-[#2e3338]">
                     {analysis.report?.qualityScore || '-'}
                   </td>
-                  <td className="px-6 py-4 text-[#2e3338]">
-                    {analysis.report?.securityScore || '-'}
-                  </td>
-                  <td className="px-6 py-4 text-[#2e3338]">
-                    {analysis.report?.performanceScore || '-'}
-                  </td>
+                  
                   <td className="px-6 py-4">
                     {analysis.report ? (
                       <span className="text-[#2e3338]">
@@ -119,11 +89,6 @@ export function HistorySection({ repository }: HistorySectionProps) {
                     ) : (
                       '-'
                     )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <button className="text-[#2e3338] hover:underline">
-                      Visualizza
-                    </button>
                   </td>
                 </tr>
               ))}

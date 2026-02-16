@@ -126,7 +126,6 @@ export function RepositoryDetail({ repository: initialRepo }: RepositoryDetailPr
   const tabs = [
     { id: 'overview' as TabType, label: 'Panoramica' },
     { id: 'details' as TabType, label: 'Dettagli Analisi' },
-    { id: 'remediation' as TabType, label: 'Remediation' },
     { id: 'history' as TabType, label: 'Storico' },
   ];
 
@@ -253,36 +252,6 @@ function OverviewTab({ repository, isAnalyzing }: { repository: Repository; isAn
 
       </div>
 
-      {/* Issues Summary */}
-      <div className="bg-white border border-[#e5e5e5] rounded-lg p-6">
-        <h3 className="text-[#2e3338] mb-4">Riepilogo Problemi</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
-            <div>
-              <div className="text-red-600">{report.criticalIssues}</div>
-              <div className="text-red-600">Critici</div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-            <div>
-              <div className="text-yellow-600">{report.warningIssues}</div>
-              <div className="text-yellow-600">Avvertimenti</div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />
-            <div>
-              <div className="text-blue-600">{report.infoIssues}</div>
-              <div className="text-blue-600">Informativi</div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Last Analysis Info */}
       <div className="bg-white border border-[#e5e5e5] rounded-lg p-6">
@@ -341,22 +310,7 @@ function DetailsTab({ repository }: { repository: Repository }) {
       issues: report.qualityIssues || [],
       score: report.qualityScore,
     },
-    {
-      id: 'security',
-      name: 'Security Agent (OWASP)',
-      icon: Shield,
-      description: 'Analisi delle vulnerabilità di sicurezza',
-      issues: report.securityIssues || [],
-      score: report.securityScore,
-    },
-    {
-      id: 'bugs',
-      name: 'Bug Detection Agent',
-      icon: Bug,
-      description: 'Rilevamento di bug e potenziali errori',
-      issues: report.bugIssues || [],
-      score: 85,
-    },
+
   ];
 
   return (
@@ -382,7 +336,7 @@ function DetailsTab({ repository }: { repository: Repository }) {
                 <div className="text-right">
                   <div className="text-[#2e3338] mb-1">Score: {agent.score}/100</div>
                   <div className="text-[#73787e]">
-                    {agent.issues.length} {agent.issues.length === 1 ? 'problema' : 'problemi'}
+                    {agent.issues.length} file con errori
                   </div>
                 </div>
               </div>
