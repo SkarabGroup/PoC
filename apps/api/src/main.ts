@@ -20,7 +20,8 @@ async function bootstrap() {
   }));
 
   // Start listening on the specified port or default to 3000
-
+  const port = process.env.port || 3000;
   await app.listen(3000, '0.0.0.0');
+  console.log(`Server in ascolto alla porta ${port}`)
 }
 bootstrap();

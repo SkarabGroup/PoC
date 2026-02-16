@@ -31,14 +31,14 @@ export class AnalysisController {
     @InjectModel(OrchestratorRun.name) private runModel: Model<OrchestratorRun>,
   ) {}
 
-  @Post('run')
-  @UseGuards(JwtAuthGuard)
+  @Post()
+  //@UseGuards(JwtAuthGuard)
   async runAnalysis(
     @Body() body: CreateAnalysisDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user?: any,
   ) {
     const userEmail = user?.email || body.email || 'system_automated@analysis.com';
-    const userId = user.userId;
+    const userId = user?.userId || body.userId;
 
     try {
       const result = await this.analysisService.analyzeRepository(body.repoURL, userId, userEmail);
