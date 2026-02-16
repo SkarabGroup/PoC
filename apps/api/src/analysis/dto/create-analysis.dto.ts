@@ -1,4 +1,4 @@
-import { IsUrl, IsNotEmpty, IsMongoId } from 'class-validator';
+import { IsUrl, IsNotEmpty, IsMongoId, IsEmail, IsOptional } from 'class-validator';
 
 export class CreateAnalysisDto {
     @IsUrl({}, { message: "Must be an URL" })
@@ -8,4 +8,8 @@ export class CreateAnalysisDto {
     @IsMongoId({message : 'Invalid UserID'})
     @IsNotEmpty({message: 'Need a uesrname!'})
     userId:string;
+
+    @IsOptional()
+    @IsEmail()
+    email:string;
 }

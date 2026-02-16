@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import time
+from datetime import datetime
 from dotenv import load_dotenv
 from strands import Agent
 from tools.orchestratorTools import *
@@ -126,6 +127,26 @@ def main():
         print(f"CRITICAL ERROR: {str(e)}", file=sys.stderr)
         import traceback
         traceback.print_exc(file=sys.stderr)
+
+        # Try to send failure webhook
+        analysis_id = os.getenv('ANALYSIS_ID')
+        if analysis_id:
+            try:
+                nest_url = 'http://host.docker.internal:3000/analysis/webhook'
+                error_payload = {
+                    'analysis_id': analysis_id,
+                    'summary': None,
+                    'error': str(e),
+                    'execution_metrics': {
+                        'failed_at': datetime.now().isoformat(),
+                        'total_time_seconds': elapsed
+                    }
+                }
+                requests.post(nest_url, json=error_payload, timeout=5)
+                print(f"[Info] Failure webhook sent for analysis {analysis_id}", file=sys.stderr)
+            except Exception as webhook_error:
+                print(f"[Warning] Failed to send failure webhook: {webhook_error}", file=sys.stderr)
+
         sys.exit(1)
     finally:
         # Calculate total execution time

@@ -1,41 +1,130 @@
-import { Body, Controller, Post, Get, NotFoundException, Param} from '@nestjs/common';
+import { 
+  Body, 
+  Controller, 
+  Post, 
+  Get, 
+  NotFoundException, 
+  Param, 
+  UseGuards, 
+  Query, 
+  HttpCode, 
+  Logger 
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+
 import { AnalysisService } from './analysis.service';
 import { CreateAnalysisDto } from './dto/create-analysis.dto';
 import { AnalysisResultHandlerService } from './analysis-result-handler/analysis-result-handler.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-import path from 'path';
-import fs from 'fs';
+import { OrchestratorRun } from '../orchestrator-run.schema';
 
 @Controller('analysis')
 export class AnalysisController {
-    constructor(private readonly analysis: AnalysisService,
-                private readonly resultHandler: AnalysisResultHandlerService) {}
+  private readonly logger = new Logger(AnalysisController.name);
 
-    @Post()
-    public analyzeRepository(@Body() body : CreateAnalysisDto) {
-        return this.analysis.analyzeRepository(body.repoURL, body.userId);
+  constructor(
+    private readonly analysisService: AnalysisService,
+    private readonly resultHandler: AnalysisResultHandlerService,
+    @InjectModel(OrchestratorRun.name) private runModel: Model<OrchestratorRun>,
+  ) {}
+
+  @Post('run')
+  @UseGuards(JwtAuthGuard)
+  async runAnalysis(
+    @Body() body: CreateAnalysisDto,
+    @CurrentUser() user: any,
+  ) {
+    const userEmail = user?.email || body.email || 'system_automated@analysis.com';
+    const userId = user.userId;
+
+    try {
+      const result = await this.analysisService.analyzeRepository(body.repoURL, userId, userEmail);
+      return {
+        success: true,
+        data: result
+      };
+    } catch (error) {
+      this.logger.error(`Analysis initiation failed: ${error.message}`);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  @Post('webhook')
+  @HttpCode(200)
+  async handleWebhook(@Body() result: any) {
+    const analysisId = result.analysis_id || result.mongodb_run_id;
+
+    if (!analysisId) {
+      this.logger.error('Webhook received without analysis identification');
+      return { success: false, message: 'Missing analysis identification' };
     }
 
-    @Post('webhook')
-    public async handleWebhook(@Body() results: any) {
-        const { analysis_id, ...summary } = results;
+    try {
+      await this.resultHandler.memorizeResults(analysisId, result);
+      
+      await this.runModel.findByIdAndUpdate(analysisId, {
+        status: result.status === 'error' ? 'error' : 'completed',
+        'metadata.updated_at': new Date()
+      });
 
-        if (!analysis_id) {
-            console.error('[Webhook] Errore: analysisId mancante nei dati ricevuti');
-            return { status: 'error', message: 'analysisId is required' };
-        }
-
-        await this.resultHandler.memorizeResults(analysis_id, summary);
-
-            return { 
-                status: 'success', 
-                message: `Risultati per l'analisi ${analysis_id} elaborati correttamente` 
-            };
-
+      return { success: true };
+    } catch (error) {
+      this.logger.error(`Webhook processing error: ${error.message}`);
+      return { success: false, error: error.message };
     }
+  }
 
-    @Get('report/:id')
-    public async getReport(@Param('id') id: string) {
-        return await this.resultHandler.getReport(id);
+  @Get('history')
+  @UseGuards(JwtAuthGuard)
+  async getHistory(
+    @CurrentUser() user: any,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '20',
+  ) {
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const filter = { userId: user.userId };
+
+    const [runs, total] = await Promise.all([
+      this.runModel
+        .find(filter)
+        .sort({ 'metadata.created_at': -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .exec(),
+      this.runModel.countDocuments(filter),
+    ]);
+
+    return {
+      data: runs.map(run => ({
+        id: run._id,
+        repository: run.repository,
+        status: run.status,
+        createdAt: run.metadata?.created_at,
+      })),
+      pagination: {
+        page: pageNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    };
+  }
+
+  @Get('report/:id')
+  @UseGuards(JwtAuthGuard)
+  public async getReport(@Param('id') id: string) {
+    const report = await this.resultHandler.getReport(id);
+    if (!report) {
+      throw new NotFoundException(`Analysis report ${id} not found`);
     }
+    return report;
+  }
 }

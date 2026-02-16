@@ -1,72 +1,49 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react';
+import { useAuth } from './hooks/useAuth';
+import { Dashboard } from './components/Dashboard';
+import { LoginPage } from './components/LoginPage';
+import { RegisterPage } from './components/RegisterPage';
 
-function App() {
-  const [repoUrl, setRepoUrl] = useState('');
-  const [loading, setLoading] = useState(false);
+export default function App() {
+  const { isAuthenticated, loading } = useAuth();
+  const [showRegister, setShowRegister] = useState(false);
 
-  const handleAnalyze = async () => {
-    if (!repoUrl) return alert("Inserisci un URL!");
-    
-    setLoading(true);
-    try {
-      const response = await fetch('http://localhost:3000/analysis', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          repoURL: repoUrl,
-          userId: "698fcc5a369c527fbf284d0c"
-        }),
-      });
+  // Listen for hash changes to handle register link
+  useEffect(() => {
+    const handleHashChange = () => {
+      setShowRegister(window.location.hash === '#register');
+    };
 
-      if (!response.ok) throw new Error('Errore nella richiesta');
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
-      const data = await response.json();
-      alert(`Analisi avviata con successo! ID: ${data.analysisId}`);
-      setRepoUrl(''); // Pulisce la barra dopo l'invio
-    } catch (error) {
-      console.error(error);
-      alert("Errore: controlla che il backend sia attivo e i CORS abilitati");
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center">
+        <p className="text-[#73787e]">Caricamento...</p>
+      </div>
+    );
+  }
 
-  return (
-    <div style={{ padding: '40px', textAlign: 'center', fontFamily: 'sans-serif' }}>
-      <h1>Agenti Analyzer</h1>
-      <p>Inserisci l'URL di una repository GitHub per iniziare l'analisi</p>
-      
-      <div style={{ marginTop: '20px' }}>
-        <input 
-          type="text" 
-          placeholder="https://github.com/utente/repo" 
-          value={repoUrl}
-          onChange={(e) => setRepoUrl(e.target.value)}
-          style={{
-            padding: '12px',
-            width: '400px',
-            borderRadius: '4px',
-            border: '1px solid #ccc',
-            marginRight: '10px'
+  if (!isAuthenticated) {
+    if (showRegister) {
+      return (
+        <RegisterPage
+          onRegisterSuccess={() => {
+            window.location.hash = '';
+            setShowRegister(false);
+          }}
+          onBackToLogin={() => {
+            window.location.hash = '';
+            setShowRegister(false);
           }}
         />
-        <button 
-          onClick={handleAnalyze} 
-          disabled={loading}
-          style={{
-            padding: '12px 24px',
-            borderRadius: '4px',
-            backgroundColor: loading ? '#ccc' : '#007bff',
-            color: 'white',
-            border: 'none',
-            cursor: loading ? 'not-allowed' : 'pointer'
-          }}
-        >
-          {loading ? 'Inviando...' : 'Analizza'}
-        </button>
-      </div>
-    </div>
-  );
-}
+      );
+    }
+    return <LoginPage onLogin={() => {}} />;
+  }
 
-export default App;
+  return <Dashboard />;
+}

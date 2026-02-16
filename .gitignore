@@ -69,3 +69,12 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 analysisResults/
+
+.claude/
+
+src/server/reports/
+
+src/server/test-api.js
+src/server/*.js
+
+src/frontend/build/
