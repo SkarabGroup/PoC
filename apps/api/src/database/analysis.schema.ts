@@ -35,6 +35,36 @@ export class Analysis {
   @Prop({ type: Object })
   details?: Record<string, any>; // spell_agent_details
 
+  @Prop({ type: Object })
+  report?: {
+    qualityScore: number;
+    securityScore: number;
+    performanceScore: number;
+    criticalIssues: number;
+    warningIssues: number;
+    infoIssues: number;
+    qualityIssues: Array<{
+      title: string;
+      description: string;
+      severity: 'critical' | 'warning' | 'info';
+      file: string;
+      line: number;
+    }>;
+    securityIssues: any[];
+    bugIssues: any[];
+    remediations: any[];
+  };
+
+  @Prop({ type: Object })
+  executionMetrics?: {
+    total_time_seconds: number;
+    initialization_time_seconds: number;
+    execution_time_seconds: number;
+    parsing_time_seconds: number;
+    started_at: string;
+    completed_at: string;
+  };
+
   @Prop()
   errorMessage?: string;
 

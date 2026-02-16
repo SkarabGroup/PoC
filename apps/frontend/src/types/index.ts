@@ -7,7 +7,7 @@ export interface Issue {
   description: string;
   severity: IssueSeverity;
   file: string;
-  line: number;
+  line?: number;
 }
 
 export interface Remediation {
@@ -21,6 +21,15 @@ export interface Remediation {
   currentCode: string;
   suggestedCode: string;
   reason: string;
+}
+
+export interface ExecutionMetrics {
+  total_time_seconds: number;
+  initialization_time_seconds: number;
+  execution_time_seconds: number;
+  parsing_time_seconds: number;
+  started_at: string;
+  completed_at: string;
 }
 
 export interface AnalysisReport {
@@ -41,6 +50,7 @@ export interface Analysis {
   date: string;
   status: AnalysisStatus;
   report?: AnalysisReport;
+  executionMetrics?: ExecutionMetrics;
 }
 
 export interface Repository {

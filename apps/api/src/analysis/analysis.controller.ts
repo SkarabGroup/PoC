@@ -16,6 +16,7 @@ import { Model, Types } from 'mongoose';
 import { AnalysisService } from './analysis.service';
 import { CreateAnalysisDto } from './dto/create-analysis.dto';
 import { AnalysisResultHandlerService } from './analysis-result-handler/analysis-result-handler.service';
+import { AnalysisTransformerService } from './analysis-transformer.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Analysis, AnalysisDocument, AnalysisStatus } from 'src/database/analysis.schema';
@@ -27,6 +28,7 @@ export class AnalysisController {
   constructor(
     private readonly analysisService: AnalysisService,
     private readonly resultHandler: AnalysisResultHandlerService,
+    private readonly transformer: AnalysisTransformerService,
     @InjectModel(Analysis.name) private analysisModel: Model<AnalysisDocument>, // Iniettiamo il modello corretto
   ) {}
 
@@ -65,35 +67,44 @@ async handleWebhook(@Body() result: any) {
   }
 
   try {
-    // 1. Calcoliamo i dati per il campo "report" atteso dal frontend
-    const totalErrors = result.summary?.total_errors || 0;
-    const qualityScore = Math.max(0, 100 - totalErrors);
+    // 1. Trasformare spelling_analysis in qualityIssues
+    const qualityIssues = this.transformer.transformSpellingToQualityIssues(
+      result.spelling_analysis || []
+    );
 
-    // 2. Aggiornamento record Analysis
+    // 2. Categorizzare issue per severità
+    const severityCounts = this.transformer.categorizeIssuesBySeverity(qualityIssues);
+
+    // 3. Calcolare qualityScore
+    const qualityScore = this.transformer.calculateQualityScore(qualityIssues);
+
+    // 4. Creare report completo
+    const report = {
+      qualityScore: qualityScore,
+      securityScore: 100, // Default - nessun agente security attivo
+      performanceScore: 100, // Default
+      criticalIssues: severityCounts.criticalIssues,
+      warningIssues: severityCounts.warningIssues,
+      infoIssues: severityCounts.infoIssues,
+      qualityIssues: qualityIssues,
+      securityIssues: [],
+      bugIssues: [],
+      remediations: []
+    };
+
+    // 5. Aggiornare record con tutti i dati
     const updatedAnalysis = await this.analysisModel.findOneAndUpdate(
-      { analysisId: analysisUuid }, 
+      { analysisId: analysisUuid },
       {
         $set: {
           status: result.status === 'error' ? AnalysisStatus.FAILED : AnalysisStatus.COMPLETED,
           completedAt: new Date(),
-          
-          // MAPPIAMO QUI I DATI PER IL REPORT
-          report: {
-            qualityScore: qualityScore,
-            securityScore: 100, // Default
-            performanceScore: 100, // Default
-            summary: `Trovati ${totalErrors} errori in ${result.summary?.total_files || 0} file.`,
-            // Trasformiamo l'array di spelling in una stringa leggibile per il campo details
-            details: result.spelling_analysis ? JSON.stringify(result.spelling_analysis) : '',
-            criticalIssues: totalErrors,
-          },
-
-          // Manteniamo anche il summary originale se serve
+          report: report,
           summary: result.summary,
-          'metadata.execution_metrics': result.execution_metrics
+          executionMetrics: result.execution_metrics
         }
       },
-      { new: true } 
+      { new: true }
     );
 
     if (!updatedAnalysis) {
@@ -101,7 +112,9 @@ async handleWebhook(@Body() result: any) {
       return { success: false };
     }
 
-    this.logger.log(`Analisi ${analysisUuid} aggiornata con ${totalErrors} errori.`);
+    this.logger.log(
+      `Analisi ${analysisUuid} aggiornata con ${qualityIssues.length} quality issues`
+    );
     return { success: true };
   } catch (error) {
     this.logger.error(`Webhook processing error: ${error.message}`);

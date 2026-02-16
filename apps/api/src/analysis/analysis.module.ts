@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AnalysisController } from './analysis.controller';
 import { AnalysisService } from './analysis.service';
+import { AnalysisTransformerService } from './analysis-transformer.service';
 import { ValidationModule } from 'src/common/validation/validation.module';
 import { GithubCommunicatorModule } from 'src/common/github-communicator/github-communicator.module';
 import { AnalysisExecutorModule } from './analysis-executor/analysis-executor.module';
@@ -28,6 +29,7 @@ import { Project, ProjectSchema } from '../project.schema';
   controllers: [AnalysisController],
   providers: [
     AnalysisService,
+    AnalysisTransformerService,
   ],
   exports: [AnalysisService],
 })

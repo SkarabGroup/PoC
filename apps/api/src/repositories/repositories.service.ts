@@ -61,11 +61,8 @@ export class RepositoriesService {
             id: latestRun.analysisId,
             date: latestRun.createdAt,
             status: latestRun.status,
-            report: latestRun.summary ? {
-              qualityScore: latestRun.summary.quality_score || 0,
-              securityScore: latestRun.summary.security_score || 0,
-              performanceScore: latestRun.summary.performance_score || 0,
-            } : null,
+            report: latestRun.report || null,
+            executionMetrics: latestRun.executionMetrics || null,
           };
         }
 
@@ -104,14 +101,8 @@ export class RepositoriesService {
       id: run.analysisId,
       date: run.createdAt,
       status: run.status,
-      report: run.summary ? {
-        qualityScore: run.summary.quality_score || 0,
-        securityScore: run.summary.security_score || 0,
-        performanceScore: run.summary.performance_score || 0,
-        summary: run.summary.summary || '',
-        details: run.details || '',
-        criticalIssues: run.summary.total_errors || 0,
-      } : null,
+      report: run.report || null,
+      executionMetrics: run.executionMetrics || null,
     }));
 
     const projectObj = project.toObject();

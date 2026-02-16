@@ -92,7 +92,7 @@ export function RepositoryDetail({ repository: initialRepo }: RepositoryDetailPr
       return;
     }
 
-    // Create export data
+    // Create export data with complete information
     const exportData = {
       repository: {
         name: repository.name,
@@ -100,12 +100,15 @@ export function RepositoryDetail({ repository: initialRepo }: RepositoryDetailPr
         description: repository.description,
       },
       analysis: {
+        id: repository.lastAnalysis.id,
         date: repository.lastAnalysis.date,
         status: repository.lastAnalysis.status,
         report: repository.lastAnalysis.report,
+        executionMetrics: repository.lastAnalysis.executionMetrics,
       },
       exportedAt: new Date().toISOString(),
       exportedBy: 'Code Guardian PoC',
+      version: '1.0.0',
     };
 
     // Convert to JSON and download
