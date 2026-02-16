@@ -12,8 +12,21 @@ export function HistoryPage() {
 
   const fetchHistory = async () => {
     try {
-      const { analyses: history } = await analysisApi.getAllAnalysisHistory();
-      setAnalyses(history);
+      const resp = await analysisApi.getAllAnalysisHistory();
+      // backend returns { data: [...], pagination: {...} }
+      const raw = resp.data ?? resp.analyses ?? resp;
+      const history = Array.isArray(raw) ? raw : (raw?.data ?? raw?.analyses ?? []);
+
+      const mapped = (history || []).map((a: any) => ({
+        id: a.id || a.analysisId,
+        repoId: a.repository?._id || a.repository?._id || a.repository?.id,
+        repoName: a.repository?.fullName || a.repository?.fullName || a.repository?.name || a.repository?.repoName || (a.repository && typeof a.repository === 'string' ? a.repository : ''),
+        status: a.status,
+        date: a.createdAt || a.createdAt || a.date,
+        report: a.report || a.summary || null,
+      }));
+
+      setAnalyses(mapped);
     } catch (error) {
       toast.error('Errore caricamento storico');
       console.error(error);
@@ -143,7 +156,7 @@ export function HistoryPage() {
                 <th className="px-6 py-3 font-medium text-[#73787e]">Data</th>
                 <th className="px-6 py-3 font-medium text-[#73787e]">Repository</th>
                 <th className="px-6 py-3 font-medium text-[#73787e]">Stato</th>
-                <th className="px-6 py-3 font-medium text-[#73787e]">Punteggi (Q/S/P)</th>
+                
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e5e5e5]">
@@ -169,17 +182,7 @@ export function HistoryPage() {
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-[#73787e]">
-                    {analysis.report ? (
-                      <div className="flex gap-3">
-                        <span title="Qualità">Q: {analysis.report.qualityScore}%</span>
-                        <span title="Sicurezza">S: {analysis.report.securityScore}%</span>
-                        <span title="Performance">P: {analysis.report.performanceScore}%</span>
-                      </div>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
+                  
                 </tr>
               ))}
             </tbody>

@@ -8,7 +8,8 @@ import {
   UseGuards, 
   Query, 
   HttpCode, 
-  Logger 
+  Logger,
+  UnauthorizedException
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -122,7 +123,7 @@ async handleWebhook(@Body() result: any) {
   }
 }
   @Get('history')
-  // @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async getHistory(
     @CurrentUser() user: any,
     @Query('page') page: string = '1',
@@ -131,6 +132,11 @@ async handleWebhook(@Body() result: any) {
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
+
+    // Se non c'è un utente autenticato, rispondi con 401 invece di lanciare un TypeError
+    if (!user || (!user.userId && !user.id)) {
+      throw new UnauthorizedException('User not authenticated');
+    }
 
     // Assicurati che user.userId sia un ObjectId valido per il filtro
     const filter = { userId: new Types.ObjectId(user.userId || user.id) };
@@ -171,4 +177,5 @@ async handleWebhook(@Body() result: any) {
     }
     return report;
   }
+
 }
