@@ -72,7 +72,7 @@ export class RepositoriesController {
     @Body() body?: { branch?: string; areas?: any },
   ) {
     const repo = await this.repositoriesService.findOne(id, user.userId);
-    return this.analysisService.analyzeRepository(repo.url, user.id, user.email);
+    return this.analysisService.analyzeRepository(repo.url, user.userId, user.email);
   }
 
   @Get(':id/stats')

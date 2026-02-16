@@ -77,7 +77,7 @@ export class AuthService {
   async refreshToken(refreshToken: string): Promise<AuthResponseDto> {
     try {
       const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get('jwt.refreshSecret'),
+        secret: this.configService.get('JWT_REFRESH_SECRET', 'your-refresh-secret-key'),
       });
 
       const user = await this.userModel.findById(payload.sub);
