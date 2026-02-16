@@ -236,10 +236,10 @@ function OverviewTab({ repository, isAnalyzing }: { repository: Repository; isAn
   return (
     <div className="space-y-6">
       {/* Score Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="w-full">
         <div className="bg-white border border-[#e5e5e5] rounded-lg p-6">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[#73787e]">Qualità del Codice</span>
+            <span className="text-[#73787e]">Punteggio spell checking</span>
             <TrendingUp className="w-5 h-5 text-[#73787e]" />
           </div>
           <div className="text-[#2e3338] mb-1">{report.qualityScore}/100</div>
@@ -251,33 +251,6 @@ function OverviewTab({ repository, isAnalyzing }: { repository: Repository; isAn
           </div>
         </div>
 
-        <div className="bg-white border border-[#e5e5e5] rounded-lg p-6">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[#73787e]">Sicurezza</span>
-            <Shield className="w-5 h-5 text-[#73787e]" />
-          </div>
-          <div className="text-[#2e3338] mb-1">{report.securityScore}/100</div>
-          <div className="w-full bg-[#f5f5f5] rounded-full h-2">
-            <div
-              className="bg-blue-500 rounded-full h-2 transition-all"
-              style={{ width: `${report.securityScore}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#e5e5e5] rounded-lg p-6">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[#73787e]">Performance</span>
-            <Zap className="w-5 h-5 text-[#73787e]" />
-          </div>
-          <div className="text-[#2e3338] mb-1">{report.performanceScore}/100</div>
-          <div className="w-full bg-[#f5f5f5] rounded-full h-2">
-            <div
-              className="bg-yellow-500 rounded-full h-2 transition-all"
-              style={{ width: `${report.performanceScore}%` }}
-            />
-          </div>
-        </div>
       </div>
 
       {/* Issues Summary */}
@@ -330,11 +303,14 @@ function OverviewTab({ repository, isAnalyzing }: { repository: Repository; isAn
               Completata
             </span>
           </div>
-          
+
           <div className="flex justify-between">
-            <span className="text-[#73787e]">Durata</span>
-            <span className="text-[#2e3338]">2m 34s</span>
+            <span className="text-[#73787e]">Durata analisi</span>
+            <span className="text-[#2e3338]">
+              {repository.lastAnalysis?.executionMetrics?.total_time_seconds || 0} secondi
+            </span>
           </div>
+          
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 <<<<<<< HEAD
 Per avviare l'applicazione:
 ```bash
-docker compose -f infra/compose/docker-compose.yml --build
+docker compose -f infra/compose/docker-compose.yml up --build
 ```
 Da qui, vengono create le immagini di analyzer-agent e di server.
 Server viene poi containerizzato e rimane in ascolto su localhost:3000
