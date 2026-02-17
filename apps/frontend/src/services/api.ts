@@ -247,7 +247,7 @@ export const analysisApi = {
   },
 
   getAllAnalysisHistory: async (page: number = 1, limit: number = 20) => {
-    const response = await apiClient.get('/analysis', {
+    const response = await apiClient.get('/analysis/history', {
       params: { page, limit },
     });
     return response.data;

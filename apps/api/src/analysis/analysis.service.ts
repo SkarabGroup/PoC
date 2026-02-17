@@ -183,4 +183,38 @@ async getOrCreateProject(userId: string, repoUrl: string, repoName: string): Pro
     }
     return analysis;
   }
+
+  async getAllAnalysisHistory(userId: string, page: number = 1, limit: number = 20) {
+  const skip = (page - 1) * limit;
+
+  const [analyses, total] = await Promise.all([
+    this.analysisModel
+      .find({ userId: new Types.ObjectId(userId) })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('projectId', 'name repo_url')
+      //lean to have clean objects without mongoose methods, easier to manipulate and return as API response
+      .lean(),
+    this.analysisModel.countDocuments({ userId: new Types.ObjectId(userId) }),
+  ]);
+
+  return {
+    analyses: analyses.map((a) => ({
+      id: a.analysisId,
+      repoId: a.projectId ? (a.projectId as any)._id.toString() : null,
+      repoName: a.projectId ? (a.projectId as any).name : 'Unknown',
+      date: a.createdAt,
+      status: a.status,
+      report: a.report || null,
+      executionMetrics: a.executionMetrics || null,
+    })),
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}
 }

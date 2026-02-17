@@ -143,7 +143,8 @@ export function HistoryPage() {
                 <th className="px-6 py-3 font-medium text-[#73787e]">Data</th>
                 <th className="px-6 py-3 font-medium text-[#73787e]">Repository</th>
                 <th className="px-6 py-3 font-medium text-[#73787e]">Stato</th>
-                <th className="px-6 py-3 font-medium text-[#73787e]">Punteggi (Q/S/P)</th>
+                <th className="px-6 py-3 font-medium text-[#73787e]">Punteggio</th>
+                <th className="px-6 py-3 font-medium text-[#73787e]">Durata (secondi)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e5e5e5]">
@@ -172,13 +173,14 @@ export function HistoryPage() {
                   <td className="px-6 py-4 text-[#73787e]">
                     {analysis.report ? (
                       <div className="flex gap-3">
-                        <span title="Qualità">Q: {analysis.report.qualityScore}%</span>
-                        <span title="Sicurezza">S: {analysis.report.securityScore}%</span>
-                        <span title="Performance">P: {analysis.report.performanceScore}%</span>
+                        <span title="Qualità">{analysis.report.qualityScore}%</span>
                       </div>
                     ) : (
                       '-'
                     )}
+                  </td>
+                  <td className="px-6 py-4 text-[#73787e]">
+                    {analysis.executionMetrics?.total_time_seconds ? ` ${analysis.executionMetrics.total_time_seconds}` : ''}
                   </td>
                 </tr>
               ))}

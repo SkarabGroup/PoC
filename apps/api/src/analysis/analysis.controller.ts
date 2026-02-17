@@ -121,45 +121,6 @@ async handleWebhook(@Body() result: any) {
     return { success: false, error: error.message };
   }
 }
-  @Get('history')
-  // @UseGuards(JwtAuthGuard)
-  async getHistory(
-    @CurrentUser() user: any,
-    @Query('page') page: string = '1',
-    @Query('limit') limit: string = '20',
-  ) {
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
-    const skip = (pageNum - 1) * limitNum;
-
-    // Assicurati che user.userId sia un ObjectId valido per il filtro
-    const filter = { userId: new Types.ObjectId(user.userId || user.id) };
-
-    const [analyses, total] = await Promise.all([
-      this.analysisModel
-        .find(filter)
-        .populate('repositoryId') // Popoliamo i dati della repo per la history
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limitNum)
-        .exec(),
-      this.analysisModel.countDocuments(filter),
-    ]);
-
-    return {
-      data: analyses.map(analysis => ({
-        id: analysis.analysisId,
-        repository: analysis.repositoryId, // Ora contiene l'oggetto popolato
-        status: analysis.status,
-        createdAt: analysis.createdAt,
-      })),
-      pagination: {
-        page: pageNum,
-        total,
-        totalPages: Math.ceil(total / limitNum),
-      },
-    };
-  }
 
   @Get('report/:id')
   // @UseGuards(JwtAuthGuard)
@@ -170,5 +131,15 @@ async handleWebhook(@Body() result: any) {
       throw new NotFoundException(`Analysis report ${id} not found`);
     }
     return report;
+  }
+
+  @Get('history')
+  @UseGuards(JwtAuthGuard)
+  async getAllHistory(
+    @CurrentUser() user: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ) {
+    return this.analysisService.getAllAnalysisHistory(user.userId, +page, +limit);
   }
 }
