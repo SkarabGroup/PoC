@@ -15,7 +15,7 @@ export class AnalysisTransformerService {
       .filter(item => item.misspelled_words && item.misspelled_words.length > 0)
       .map(item => ({
         title: `Spelling errors in ${this.getFileName(item.file_path)}`,
-        description: `Found ${item.misspelled_words.length} misspelled words: ${item.misspelled_words.slice(0, 5).join(', ')}${item.misspelled_words.length > 5 ? '...' : ''}`,
+        description: item.misspelled_words.map(w => `${w}`).join(', '),
         severity: 'warning',
         file: item.file_path,
         line: 0, // Spelling analysis non fornisce line number
