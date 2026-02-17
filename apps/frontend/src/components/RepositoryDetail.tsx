@@ -236,20 +236,30 @@ function OverviewTab({ repository, isAnalyzing }: { repository: Repository; isAn
     <div className="space-y-6">
       {/* Score Cards */}
       <div className="w-full">
-        <div className="bg-white border border-[#e5e5e5] rounded-lg p-6">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[#73787e]">Punteggio spell checking</span>
-          </div>
-          <div className="text-[#2e3338] mb-1">{report.qualityScore}/100</div>
-          <div className="w-full bg-[#f5f5f5] rounded-full h-2">
-            <div
-              className="bg-green-500 rounded-full h-2 transition-all"
-              style={{ width: `${report.qualityScore}%` }}
-            />
-          </div>
-          
+      <div className="bg-white border border-[#e5e5e5] rounded-lg p-6">
+        <div className="flex items-center justify-between mb-3">
+        <span className="text-[#73787e]">Punteggio qualità</span>
         </div>
+        <div className="text-[#2e3338] mb-1">{report.qualityScore}/100</div>
+        <div className="w-full bg-[#f5f5f5] rounded-full h-2">
+        <div
+          className="bg-green-500 rounded-full h-2 transition-all"
+          style={{ width: `${report.qualityScore}%` }}
+        />
+        </div>
+      </div>
+      </div>
 
+      {/* Files with Issues Card */}
+      <div className="w-full">
+      <div className="bg-white border border-[#e5e5e5] rounded-lg p-6">
+        <div className="flex items-center justify-between mb-3">
+        <span className="text-[#73787e]">File con problemi</span>
+        </div>
+        <div className="text-[#2e3338] text-2xl font-semibold">
+        {report.qualityIssues?.length || 0}
+        </div>
+      </div>
       </div>
 
 
