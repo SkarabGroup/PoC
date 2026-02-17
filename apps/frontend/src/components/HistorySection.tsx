@@ -1,5 +1,5 @@
-import { CheckCircle2, AlertCircle, Clock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { Repository } from '../types';
+import { CheckCircle2, AlertCircle, Clock, TrendingUp, TrendingDown, Minus, Download } from 'lucide-react';
+import { Repository, Analysis } from '../types';
 
 interface HistorySectionProps {
   repository: Repository;
@@ -7,6 +7,36 @@ interface HistorySectionProps {
 
 export function HistorySection({ repository }: HistorySectionProps) {
   const history = repository.analysisHistory || [];
+
+  const handleExportAnalysis = (analysis: Analysis) => {
+    const exportData = {
+      repository: {
+        name: repository.name,
+        url: repository.url,
+        description: repository.description,
+      },
+      analysis: {
+        id: analysis.id,
+        date: analysis.date,
+        status: analysis.status,
+        report: analysis.report,
+        executionMetrics: analysis.executionMetrics,
+      },
+      exportedAt: new Date().toISOString(),
+      exportedBy: 'Code Guardian PoC',
+      version: '1.0.0',
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `analysis-${repository.name}-${new Date(analysis.date).toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   if (history.length === 0) {
     return (
@@ -81,6 +111,7 @@ export function HistorySection({ repository }: HistorySectionProps) {
                 <th className="px-6 py-3 text-left text-[#2e3338]">Stato</th>
                 <th className="px-6 py-3 text-left text-[#2e3338]">Qualità</th>
                 <th className="px-6 py-3 text-left text-[#2e3338]">File con problemi</th>
+                <th className="px-6 py-3 text-left text-[#2e3338]">Esporta Report</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e5e5e5]">
@@ -116,6 +147,14 @@ export function HistorySection({ repository }: HistorySectionProps) {
                     ) : (
                       '-'
                     )}
+                  </td>
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => handleExportAnalysis(analysis)}
+                      className="px-3 py-1 bg-[#2e3338] text-white rounded text-sm hover:bg-[#1a1d20] transition-colors"
+                    >
+                      Download
+                    </button>
                   </td>
                 </tr>
               ))}

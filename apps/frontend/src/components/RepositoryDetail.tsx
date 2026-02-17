@@ -145,24 +145,6 @@ export function RepositoryDetail({ repository: initialRepo }: RepositoryDetailPr
             )}
           </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={handleExport}
-              className="px-4 py-2 bg-white border border-[#e5e5e5] text-[#2e3338] rounded-lg hover:bg-[#f5f5f5] transition-colors flex items-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Esporta
-            </button>
-            
-            <button
-              onClick={handleStartAnalysis}
-              disabled={isAnalyzing}
-              className="px-4 py-2 bg-[#2e3338] text-white rounded-lg hover:bg-[#1a1d20] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Play className="w-4 h-4" />
-              {isAnalyzing ? 'Analisi in corso...' : 'Avvia Analisi'}
-            </button>
-          </div>
         </div>
 
         {/* Tabs */}

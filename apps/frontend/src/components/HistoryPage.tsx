@@ -123,7 +123,7 @@ export function HistoryPage() {
           <div>
             <h1 className="text-[#2e3338] mb-2">Storico Analisi</h1>
             <p className="text-[#73787e]">
-              Visualizza lo storico completo delle analisi effettuate su tutte le repository
+              Visualizza lo storico completo delle analisi effettuate su tutte le repository, per scaricare i report dettagliati vedi il dettaglio delle repository.
             </p>
           </div>
           {isConnected && (
