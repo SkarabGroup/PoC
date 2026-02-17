@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Get, NotFoundException, Param } from '@nestjs/common';
+import { Body, Controller, Post, Get, NotFoundException, Param , Query, Request, UseGuards} from '@nestjs/common';
 import { AnalysisService } from './analysis.service';
 import { CreateAnalysisDto } from './dto/create-analysis.dto';
 import { AnalysisResultHandlerService } from './analysis-result-handler/analysis-result-handler.service';
@@ -12,8 +12,8 @@ export class AnalysisController {
                 private readonly resultHandler: AnalysisResultHandlerService) {}
 
     @Post()
-    public analyzeRepository(@Body() url : CreateAnalysisDto) {
-        return this.analysis.analyzeRepository(url.repoURL);
+    public analyzeRepository(@Body() body : CreateAnalysisDto) {
+        return this.analysis.analyzeRepository(body.repoURL, body.userId);
     }
 
     @Post('webhook')
@@ -33,10 +33,11 @@ export class AnalysisController {
         // 3. Chiamata al service che fa tutto il lavoro (Salvataggio + WebSocket)
         await this.resultHandler.memorizeResults(analysis_id, summary);
 
-        return { 
-            status: 'success', 
-            message: `Risultati per l'analisi ${analysis_id} elaborati correttamente` 
-        };
+            return { 
+                status: 'success', 
+                message: `Risultati per l'analisi ${analysis_id} elaborati correttamente` 
+            };
+
     }
 
     @Get('report/:id')

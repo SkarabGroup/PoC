@@ -18,6 +18,9 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY orchestrator.py .
+COPY spellAgent.py .
+COPY tools/ ./tools/
+COPY .env .
 
 ENTRYPOINT ["python", "orchestrator.py"]

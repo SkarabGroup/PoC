@@ -1,17 +1,20 @@
 import { WebSocketGateway, WebSocketServer, OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
-import { Server } from 'ws'; // Importa da 'ws'
+import { Server, WebSocket  } from 'ws'; // Importa da 'ws'
+import { Logger } from '@nestjs/common';
 
 @WebSocketGateway({ path: '/analysis-socket' }) // Definiamo un path chiaro
 export class AnalysisGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  private readonly logger = new Logger(AnalysisGateway.name);
+
   @WebSocketServer()
   server: Server;
 
-  handleConnection(client: any) {
-    console.log('[WS]: Un client si è connesso');
+  handleConnection(client: WebSocket) {
+    this.logger.log('[WS]: Un client si è connesso');
   }
 
   handleDisconnect(client: any) {
-    console.log('[WS]: Un client si è disconnesso');
+    this.logger.log('[WS]: Un client si è disconnesso');
   }
 
   notifyCompletion(analysisId: string, summary: any) {
@@ -28,9 +31,11 @@ export class AnalysisGateway implements OnGatewayConnection, OnGatewayDisconnect
     });
 
     // In WS puro, dobbiamo scorrere i client connessi e inviare il messaggio
+    let setCount = 0;
     this.server.clients.forEach((client) => {
       if (client.readyState === 1) { // 1 significa OPEN
         client.send(message);
+        setCount ++;
       }
     });
   }

@@ -1,45 +1,56 @@
-import { Injectable, Logger } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
+import { Injectable, Logger, NotFoundException} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { AnalysisGateway } from './gateway/analysis.gateway';
+import { Analysis, AnalysisDocument, AnalysisSchema, AnalysisStatus } from 'src/database/analysis.schema';
 
 @Injectable()
 export class AnalysisResultHandlerService {
   private readonly logger = new Logger(AnalysisResultHandlerService.name);
-  private readonly resultsPath = path.join(process.cwd(), 'analysisResults');
 
-  constructor(private readonly gateway: AnalysisGateway) {
-    // Crea la cartella se non esiste all'avvio
-    if (!fs.existsSync(this.resultsPath)) {
-      fs.mkdirSync(this.resultsPath);
-    }
-  }
-
+  constructor(private readonly gateway: AnalysisGateway, @InjectModel(Analysis.name) private analysisModel: Model<AnalysisDocument>) {}
+  
   async memorizeResults(analysisId: string, summary: any) {
     this.logger.log(`Ricevuto risultato per analisi: ${analysisId}`);
 
-    // 1. Salvataggio su file
-    const filePath = path.join(this.resultsPath, `analysis_${analysisId}.json`);
-    const data = {
-      analysisId,
-      timestamp: new Date().toISOString(),
-      summary,
-    };
-
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-    this.logger.log(`File salvato in: ${filePath}`);
-
-    // 2. Notifica via WebSocket
+    const analysis = await this.analysisModel.findOne({analysisId});
+    const updatedAnalysis = await this.analysisModel.findOneAndUpdate(
+      {analysisId},
+      {
+        status: AnalysisStatus.COMPLETED,
+        summary,
+      },
+      {new: true},
+    ).populate('userId', 'username email').populate('repoId');
+    this.logger.log(
+      'Analisi ${analysisId} completata - ' + 
+      'User: ${updatedAnalysis.userId?.["username"]}' +
+      'Repo: ${updatedAnalysis.repositoryId?.["fullName"]}'
+    )
     this.gateway.notifyCompletion(analysisId, summary);
-    
-    return data;
+    return updatedAnalysis;
   }
 
-  getReport(analysisId: string) {
-    const filePath = path.join(this.resultsPath, `analysis_${analysisId}.json`);
-    if (!fs.existsSync(filePath)) {
-      return null;
+  async getReport(analysisId: string) {
+    const analysis = await this.analysisModel
+      .findOne({ analysisId })
+      .populate('userId', 'username email firstName lastName')
+      .populate('repositoryId')
+      .exec();
+
+    if (!analysis) {
+      throw new NotFoundException(`Report per analisi ${analysisId} non trovato`);
     }
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return {
+      analysisId: analysis.analysisId,
+      status: analysis.status,
+      user: analysis.userId,
+      repository: analysis.repositoryId,
+      summary: analysis.summary,
+      completedAt: analysis.completedAt,
+      errorMessage: analysis.errorMessage,
+      createdAt: analysis['createdAt'],
+      updatedAt: analysis['updatedAt']
+    };
   }
 }

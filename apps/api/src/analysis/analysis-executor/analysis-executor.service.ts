@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { spawn } from 'child_process';
+import { join } from 'path';
 
 @Injectable()
 export class AnalysisExecutorService {
@@ -14,10 +15,11 @@ export class AnalysisExecutorService {
     }
 
     private startDockerAnalysis(repoOwner: string, repoName: string, analysisId: string) : void {
+
         const container = spawn('docker', [
             'run',
             '--rm',
-            '--env-file', '../agents/.env',
+            '--env-file', '/agents/.env',
             '-e', `ANALYSIS_ID=${analysisId}`,
             'analyzer-agent:latest',
             `https://github.com/${repoOwner}/${repoName}`,

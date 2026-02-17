@@ -1,54 +1,27 @@
-# PoC
-Repository specifica per il codice del PoC per il progetto code guardian
+docker exec -it poc-mongodb-1 mongosh agenti_db --eval "
+  db.users.insertOne({
+    email: 'test@example.com',
+    username: 'testuser',
+    isActive: true,
+    roles: ['user']
+  })
+"
 
-API:
-```bash
-cd apps/api && npm run start:dev
-curl -X GET http://localhost:3000/health
-```
+curl -X POST http://localhost:3000/analysis \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repoURL": "https://github.com/octocat/Hello-World",
+    "userId": "698e39a11cea51219b8ce5b0"
+  }'
 
-Test:
-```bash
-curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"repoURL": "https://github.com/Poian3k/TeXeneratorGUI"}'
-```
-Dovrebbe restituire:
-```bash
+docker logs poc-api-1
 
-```
+  docker exec -it poc-mongodb-1 mongosh agenti_db
 
-Provare anche:
-```bash
-curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"repoURL": "https://github.com/bimbumbam/bambumbim"}'
-curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{}'
-```
+docker exec -it poc-mongodb-1 mongosh agenti_db
 
-Se tutto funziona:
-```bash
-cd infra/compose
-docker compose up -d
-```
+db.analyses.find().pretty()
+db.repositories.find().pretty()
+db.users.find().pretty()
 
-Se genera un errore legato alle credenziali:
-```bash
-nano ~/.docker/config.json
-```
-e rimuovere la riga:
-```bash
-"credsStore": "desktop"
-= .env
-In .env.example é espressa la struttura del .env
-
-3. Installare pymongo
-```bash
-pip install pymongo
-```
-
-4. Avviare MongoDB
-localmente
-```bash
-sudo systemctl start mongodb (su ubuntu/debian)
-```
-con docker
-```bash
-docker run -d -p 27017:27017 --name mongodb mongo:latest 
-```
+docker build -f Dockerfile.agents -t analyzer-agent:latest  .
