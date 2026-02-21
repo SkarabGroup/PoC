@@ -37,6 +37,33 @@ export function RepositoryDetail({ repository: initialRepo }: RepositoryDetailPr
     loadRepositoryDetails();
   }, [initialRepo.id]);
 
+  // Polling per aggiornare i dettagli quando un'analisi è in corso
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    
+    if (isAnalyzing || repository.lastAnalysis?.status === 'in-progress') {
+      interval = setInterval(async () => {
+        try {
+          const fullRepo = await repositoriesApi.getOne(initialRepo.id);
+          setRepository(fullRepo);
+          
+          if (fullRepo.lastAnalysis?.status && fullRepo.lastAnalysis.status !== 'in-progress') {
+            setIsAnalyzing(false);
+            if (fullRepo.lastAnalysis.status === 'completed') {
+               toast.success('Analisi completata!');
+            } else if (fullRepo.lastAnalysis.status === 'failed') {
+               toast.error('Analisi fallita');
+            }
+          }
+        } catch (error) {
+          console.error('Errore polling dettagli repository:', error);
+        }
+      }, 5000);
+    }
+    
+    return () => clearInterval(interval);
+  }, [isAnalyzing, repository.lastAnalysis?.status, initialRepo.id]);
+
   // Listen to WebSocket events for real-time updates
   useEffect(() => {
     if (!socket) return;

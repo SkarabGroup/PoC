@@ -36,6 +36,23 @@ export function RepositoryList({ onSelectRepo }: RepositoryListProps) {
     fetchRepositories();
   }, []);
 
+  // Polling per aggiornare lo stato di analisi in corso
+  useEffect(() => {
+    const hasInProgress = repositories.some((repo: Repository) => repo.lastAnalysis?.status === 'in-progress');
+    if (!hasInProgress) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const repos = await repositoriesApi.getAll();
+        setRepositories(repos);
+      } catch (error) {
+        console.error('Errore polling repository:', error);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [repositories]);
+
   const filteredRepos = repositories.filter(repo =>
     repo.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
