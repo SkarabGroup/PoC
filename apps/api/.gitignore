@@ -1,16 +1,3 @@
-# Python virtual environment
-venv/
-.venv/
-__pycache__/
-*.py[cod]
-
-# Node dependencies
-node_modules/
-dist/
-
-# Environment variables
-.env
-
 # compiled output
 /dist
 /node_modules
@@ -67,14 +54,3 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-
-analysisResults/
-
-.claude/
-
-src/server/reports/
-
-src/server/test-api.js
-src/server/*.js
-
-src/frontend/build/

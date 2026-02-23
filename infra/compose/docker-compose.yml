@@ -1,0 +1,48 @@
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb_container
+    command: ["--quiet", "--logpath", "/dev/null"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+  api:
+    build:
+      context: ../../apps/api
+      dockerfile: Dockerfile
+    env_file: 
+      - ../../.env
+    container_name: server_container
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongodb
+    volumes:
+      - ../../apps/api:/app
+      - /app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    command: npm run start:dev
+
+  analyzer-agent:
+    build:
+      context: ../../apps/agents
+      dockerfile: Dockerfile
+    image: analyzer-agent:latest
+    entrypoint: ["echo", "Agent image build complete"]
+
+  frontend:
+    build:
+      context: ../../apps/frontend/
+      dockerfile: Dockerfile
+    container_name: frontend_container
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    volumes:
+      - ../../apps/frontend:/app
+      - /app/node_modules
+volumes:
+  mongo_data:

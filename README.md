@@ -1,38 +1,21 @@
-# PoC
-Repository specifica per il codice del PoC per il progetto code guardian
+# 0. Creazione .env
+Creare un file .env nella cartella root basandosi sul file .env.example, per il PoC il metodo di analisi é docker, il metodo AWS sarà disponibile nell'MVP.
 
-1. Installare le dipendenze backend e avviare il server 
-Aprire una scheda del terminale
-Da PoC/
+# 1. Avvio:
 ```bash
-cd src/backend
-npm install uuid express dotenv
-npx ts-node server.ts
+docker compose -f infra/compose/docker-compose.yml up --build
 ```
-Da Terminale dovrebbe comparire il messaggio
+
+
+# 2. Accesso
+
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:3000
+- **MongoDB**: mongodb://localhost:27017
+- **Redis**: localhost:6379
+
+# 3. Eliminazione immagini
 ```bash
-Server listening on port 3000
+cd infra/compose
+docker compose down --rmi local
 ```
-Tenerla attiva per tutta la esecuzione
-
-2. Installare le dipendenze python
-Aprendo una nuova scheda del terminale
-Da PoC/
-```bash
-cd src/agents
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r ../../requirements.txt
-```
-= Librerie da installare
-== backend
-dotenv express (.env ==> express.env)
-
-= Comandi per settare l'ambiente virtuale
-
-python3 -m venv venv 
-source venv/bin/activate
-pip install -r requirements.txt
-
-= .env
-In .env.example é espressa la struttura del .env
