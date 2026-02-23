@@ -7,6 +7,54 @@ from dotenv import load_dotenv
 from strands import Agent
 from tools.orchestratorTools import *
 import requests
+import re
+
+def extract_json(text: str) -> dict:
+    """
+    Estrae il JSON più completo dal testo del modello.
+    Gestisce: blocchi ```json, tag <response>, testo misto.
+    Strategia: raccoglie tutti i candidati JSON e sceglie il più lungo.
+    """
+    candidates = []
+
+    # Estract (```json ... ```)
+    for match in re.finditer(r'```(?:json)?\s*(.*?)\s*```', text, re.DOTALL):
+        candidates.append(match.group(1).strip())
+
+    # Remove(<response>, <thinking>)
+    text_clean = re.sub(r'<(response|thinking)>.*?</\1>', '', text, flags=re.DOTALL).strip()
+    # Remove markdown blocks (```json ... ```)
+    text_clean = re.sub(r'```(?:json)?.*?```', '', text_clean, flags=re.DOTALL).strip()
+    if text_clean:
+        candidates.append(text_clean)
+
+    # fall back:  consider the entire text as a candidate
+    candidates.append(text)
+
+    # For each candidate, try to extract JSON objects by looking for balanced braces {}
+    all_json_objects = []
+    for candidate in candidates:
+        for match in re.finditer(r'\{', candidate):
+            start = match.start()
+            depth = 0
+            for i, ch in enumerate(candidate[start:], start):
+                if ch == '{':
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+                    if depth == 0:
+                        all_json_objects.append(candidate[start:i+1])
+                        break
+
+    # 5. Try all the found JSON objects and return the first one that parses successfully (preferably the longest)
+    for obj in sorted(all_json_objects, key=len, reverse=True):
+        try:
+            return json.loads(obj)
+        except json.JSONDecodeError:
+            continue
+
+    raise ValueError(f"Nessun JSON valido trovato. Testo (primi 500 char):\n{text[:500]}")
+
 
 def main():
     # Start timer
@@ -41,7 +89,6 @@ def main():
         # 1. Initialization of the Orchestrator with Tools
         init_start = time.time()
         
-        # Recuperiamo l'ID analisi per iniettarlo nel prompt se necessario
         analysis_id = os.getenv("ANALYSIS_ID", "unknown")
         
         orchestrator = Agent(
@@ -104,25 +151,15 @@ def main():
         parse_start = time.time()
         raw_message = response.message
         inner_text = raw_message["content"][0]["text"]
-        
-        # Try to extract JSON from the text (in case there's extra text)
+
         try:
-            # Try parsing as-is first
-            final_output = json.loads(inner_text)
-        except json.JSONDecodeError:
-            # If that fails, try to find JSON in the text
-            import re
-            json_match = re.search(r'\{.*\}', inner_text, re.DOTALL)
-            if json_match:
-                final_output = json.loads(json_match.group())
-            else:
-                # If still no JSON, create a fallback structure
-                print(f"[Warning] Could not parse JSON. Raw output:", file=sys.stderr)
-                print(inner_text, file=sys.stderr)
-                final_output = {
-                    "error": "Failed to parse agent output as JSON",
-                    "raw_output": inner_text
-                }
+            final_output = extract_json(inner_text)
+        except ValueError as e:
+            print(f"[Warning] {e}", file=sys.stderr)
+            final_output = {
+                "error": "Failed to parse agent output as JSON",
+                "raw_output": inner_text
+            }
         
         parse_time = time.time() - parse_start
         print(f"[Timer] Response parsed in {parse_time:.2f}s", file=sys.stderr)
