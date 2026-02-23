@@ -59,7 +59,8 @@ export class AnalysisController {
 @Post('webhook')
 @HttpCode(200)
 async handleWebhook(@Body() result: any) {
-  const analysisUuid = result.analysisId || result.analysis_id;
+  const analysisUuid = result.analysis_id || result.analysisId;
+  this.logger.log(`Webhook ricevuto: ${JSON.stringify(result, null, 2)}`);
 
   if (!analysisUuid) {
     this.logger.error('Webhook ricevuto senza identificativo analisi');
@@ -67,39 +68,48 @@ async handleWebhook(@Body() result: any) {
   }
 
   try {
-    // 1. Trasformare spelling_analysis in qualityIssues
-    const qualityIssues = this.transformer.transformSpellingToQualityIssues(
-      result.spelling_analysis || []
-    );
+    let spellingAnalysis = result.spelling_analysis || [];
 
-    // 2. Categorizzare issue per severità
+    if (spellingAnalysis.length === 0 && result.report?.details) {
+      try {
+        const parsed = JSON.parse(result.report.details);
+        spellingAnalysis = Array.isArray(parsed) ? parsed : (parsed.files || []);
+        this.logger.warn(`spelling_analysis recuperato da report.details (fallback)`);
+      } catch (e) {
+        this.logger.warn(`Impossibile parsare report.details: ${e.message}`);
+      }
+    }
+
+    if (spellingAnalysis.length === 0) {
+      this.logger.warn(`Nessun spelling_analysis trovato per ${analysisUuid}`);
+    }
+
+    const qualityIssues = this.transformer.transformSpellingToQualityIssues(spellingAnalysis);
+
     const severityCounts = this.transformer.categorizeIssuesBySeverity(qualityIssues);
 
-    // 3. Calcolare qualityScore
     const qualityScore = this.transformer.calculateQualityScore(qualityIssues);
 
-    // 4. Creare report completo
     const report = {
-      qualityScore: qualityScore,
-      securityScore: 100, // Default - nessun agente security attivo
-      performanceScore: 100, // Default
+      qualityScore,
+      securityScore: 100,
+      performanceScore: 100,
       criticalIssues: severityCounts.criticalIssues,
       warningIssues: severityCounts.warningIssues,
       infoIssues: severityCounts.infoIssues,
-      qualityIssues: qualityIssues,
+      qualityIssues,
       securityIssues: [],
       bugIssues: [],
       remediations: []
     };
 
-    // 5. Aggiornare record con tutti i dati
     const updatedAnalysis = await this.analysisModel.findOneAndUpdate(
       { analysisId: analysisUuid },
       {
         $set: {
           status: result.status === 'error' ? AnalysisStatus.FAILED : AnalysisStatus.COMPLETED,
           completedAt: new Date(),
-          report: report,
+          report,
           summary: result.summary,
           executionMetrics: result.execution_metrics
         }
@@ -112,10 +122,9 @@ async handleWebhook(@Body() result: any) {
       return { success: false };
     }
 
-    this.logger.log(
-      `Analisi ${analysisUuid} aggiornata con ${qualityIssues.length} quality issues`
-    );
+    this.logger.log(`Analisi ${analysisUuid} aggiornata con ${qualityIssues.length} quality issues`);
     return { success: true };
+
   } catch (error) {
     this.logger.error(`Webhook processing error: ${error.message}`);
     return { success: false, error: error.message };

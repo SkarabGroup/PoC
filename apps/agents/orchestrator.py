@@ -95,41 +95,41 @@ def main():
             model=os.getenv("AGENT_MODEL_ID"),
             tools=[clone_repo_tool, analyze_spelling_tool],
             system_prompt=f"""You are a Senior Software Architect. 
-            Your goal is to perform a spelling analysis on a git repository.
+                            Your goal is to perform a spelling analysis on a git repository.
 
-            EXECUTION STEPS:
-            1. Clone the repository using clone_repo_tool.
-            2. Scan all documents in the cloned path and check spelling errors using analyze_spelling_tool.
-            3. Aggregate all findings.
+                            EXECUTION STEPS:
+                            1. Clone the repository using clone_repo_tool.
+                            2. Scan all documents in the cloned path and check spelling errors using analyze_spelling_tool.
+                            3. Aggregate all findings.
 
-            OUTPUT RULES:
-            - Return ONLY a valid JSON object.
-            - DO NOT include markdown code blocks (no ```json).
-            - DO NOT include thinking tags or preamble.
-            
-            JSON STRUCTURE:
-            {{
-              "analysisId": "{analysis_id}",
-              "status": "completed",
-              "report": {{
-                "qualityScore": number, (calculate as 100 minus total_errors, min 0)
-                "securityScore": 100,
-                "performanceScore": 100,
-                "summary": "string describing the findings",
-                "details": "stringified JSON of the spelling_analysis array",
-                "criticalIssues": number (total_errors)
-              }},
-              "spelling_analysis": [
-                {{
-                  "file_path": "string",
-                  "misspelled_words": ["word1", "word2"]
-                }}
-              ],
-              "summary": {{
-                "total_files": number,
-                "total_errors": number
-              }}
-            }}"""
+                            OUTPUT RULES:
+                            - Return ONLY a valid JSON object. NO markdown, NO ```json, NO <thinking>, NO text outside JSON.
+                            - The field "spelling_analysis" MUST be a TOP-LEVEL key of the root JSON object.
+                            - DO NOT nest "spelling_analysis" inside "report" or any other field.
+                            - USE ONLY REAL DATA from the analysis.
+
+                            JSON STRUCTURE (follow exactly):
+                            {{
+                            "analysisId": "{analysis_id}",
+                            "status": "completed",
+                            "spelling_analysis": [
+                                {{
+                                "file_path": "string",
+                                "misspelled_words": ["word1", "word2"]
+                                }}
+                            ],
+                            "summary": {{
+                                "total_files": number,
+                                "total_errors": number
+                            }},
+                            "report": {{
+                                "qualityScore": number,
+                                "securityScore": 100,
+                                "performanceScore": 100,
+                                "summary": "string describing the findings",
+                                "criticalIssues": number
+                            }}
+                            }}"""
         )
         init_time = time.time() - init_start
         print(f"[Timer] Orchestrator initialized in {init_time:.2f}s", file=sys.stderr)
