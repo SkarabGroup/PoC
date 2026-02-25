@@ -38,7 +38,7 @@ export function RepositoryList({ onSelectRepo }: RepositoryListProps) {
 
   // Polling per aggiornare lo stato di analisi in corso
   useEffect(() => {
-    const hasInProgress = repositories.some((repo: Repository) => repo.lastAnalysis?.status === 'in-progress');
+    const hasInProgress = repositories.some((repo: Repository) => repo.lastAnalysis?.status === 'running');
     if (!hasInProgress) return;
 
     const interval = setInterval(async () => {
@@ -48,7 +48,7 @@ export function RepositoryList({ onSelectRepo }: RepositoryListProps) {
       } catch (error) {
         console.error('Errore polling repository:', error);
       }
-    }, 5000);
+    }, 200);
 
     return () => clearInterval(interval);
   }, [repositories]);
@@ -100,7 +100,7 @@ export function RepositoryList({ onSelectRepo }: RepositoryListProps) {
               ...repo,
               lastAnalysis: {
                 ...(repo.lastAnalysis || {}),
-                status: 'in-progress' as const,
+                status: 'running' as const,
                 date: new Date().toISOString(),
               }
             }
@@ -115,7 +115,7 @@ export function RepositoryList({ onSelectRepo }: RepositoryListProps) {
     switch (status) {
       case 'completed':
         return <CheckCircle2 className="w-4 h-4 text-green-600" />;
-      case 'in-progress':
+      case 'running':
         return <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />;
       case 'failed':
         return <AlertCircle className="w-4 h-4 text-red-600" />;
@@ -128,7 +128,7 @@ export function RepositoryList({ onSelectRepo }: RepositoryListProps) {
     switch (status) {
       case 'completed':
         return 'Completata';
-      case 'in-progress':
+      case 'running':
         return 'In analisi';
       case 'failed':
         return 'Fallita';
@@ -141,7 +141,7 @@ export function RepositoryList({ onSelectRepo }: RepositoryListProps) {
     switch (status) {
       case 'completed':
         return 'text-green-600';
-      case 'in-progress':
+      case 'running':
         return 'text-blue-600';
       case 'failed':
         return 'text-red-600';

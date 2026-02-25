@@ -1,4 +1,4 @@
-export type AnalysisStatus = 'not-analyzed' | 'in-progress' | 'completed' | 'failed';
+export type AnalysisStatus = 'not-analyzed' | 'pending' | 'running' | 'completed' | 'failed';
 
 export type IssueSeverity = 'critical' | 'warning' | 'info';
 

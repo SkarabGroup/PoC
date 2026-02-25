@@ -29,62 +29,63 @@ export class AnalysisService {
     private readonly analysisRunner: AnalysisExecutorService,
   ) {}
 
-    public async analyzeRepository(URL: string, userId: string, email: string) {
-      // 1. Validazione Input
-      if (!userId || !Types.ObjectId.isValid(userId)) {
-        throw new UnauthorizedException('UserId non valido');
-      }
+public async analyzeRepository(URL: string, userId: string, email: string) {
+  // 1. Validazione Input
+  if (!userId || !Types.ObjectId.isValid(userId)) {
+    throw new UnauthorizedException('UserId non valido');
+  }
 
-      const { repoOwner, repoName } = this.validationService.validateURL(URL);
-      this.logger.log(`URL validato per GitHub: ${repoOwner}/${repoName}`);
+  const { repoOwner, repoName } = this.validationService.validateURL(URL);
+  this.logger.log(`URL validato per GitHub: ${repoOwner}/${repoName}`);
 
-      // 2. Controllo esistenza su GitHub
-      const existRepository = await this.githubCommunicatorService.checkIfRepositoryExists(repoOwner, repoName);
-      if (!existRepository) {
-        this.logger.error(`Repository ${repoOwner}/${repoName} non trovata su GitHub`);
-        throw new NotFoundException('Repository non trovata su GitHub');
-      }
+  // 2. Controllo esistenza su GitHub
+  const existRepository = await this.githubCommunicatorService.checkIfRepositoryExists(repoOwner, repoName);
+  if (!existRepository) {
+    this.logger.error(`Repository ${repoOwner}/${repoName} non trovata su GitHub`);
+    throw new NotFoundException('Repository non trovata su GitHub');
+  }
 
-      // 3. Recupero o creazione entità correlate
-      // Assicurati che findOrCreateRepository restituisca l'oggetto repository completo
-      const repository = await this.findOrCreateRepository(repoOwner, repoName, URL, userId);
-      const projectId = await this.getOrCreateProject(userId, URL, repoName);
+  // 3. Recupero o creazione entità correlate
+  const repository = await this.findOrCreateRepository(repoOwner, repoName, URL, userId);
+  const projectId = await this.getOrCreateProject(userId, URL, repoName);
 
-      // 4. Inizializzazione Identificativi e Configurazione
-      const analysisUuid = uuidv4(); // Questo è l'ID che passeremo a Docker/AWS
-      const analysisMethod = this.configuration.get('ANALYSIS_METHOD');
+  // 4. Inizializzazione Identificativi e Configurazione
+  const analysisUuid = uuidv4(); 
+  const analysisMethod = this.configuration.get('ANALYSIS_METHOD');
 
-      // 5. Creazione Record Unico su Analysis (Stato iniziale: pending)
-      const newAnalysis = await this.analysisModel.create({
-        analysisId: analysisUuid, // UUID per il matching del webhook
-        userId: new Types.ObjectId(userId),
-        repositoryId: repository._id,
-        projectId: new Types.ObjectId(projectId),
-        status: AnalysisStatus.PENDING,
-        metadata: {
-          user_email: email,
-          triggered_by: 'orchestrator_v2',
-          docker_image: 'analyzer-agent:latest'
-        }
-      });
+  // 5. Creazione Record Unico (Nasce già in RUNNING per evitare glitch nel frontend)
+  const newAnalysis = await this.analysisModel.create({
+    analysisId: analysisUuid,
+    userId: new Types.ObjectId(userId),
+    repositoryId: repository._id,
+    projectId: new Types.ObjectId(projectId),
+    status: AnalysisStatus.RUNNING, // Stato iniziale impostato direttamente a RUNNING
+    metadata: {
+      user_email: email,
+      triggered_by: 'orchestrator_v2',
+      docker_image: 'analyzer-agent:latest',
+      startedAt: new Date()
+    }
+  });
 
-  this.logger.log(`Record analisi creato con UUID: ${analysisUuid}. Metodo: ${analysisMethod}`);
+  this.logger.log(`Record creato direttamente in RUNNING. UUID: ${analysisUuid}`);
 
   // 6. Avvio effettivo dell'analisi (Asincrono)
   try {
-    // IMPORTANTE: Passiamo l'UUID (analysisUuid) all'esecutore, 
-    // così il webhook saprà a quale record riferirsi.
-    this.analysisRunner.startAnalysis(String(analysisMethod), repoOwner, repoName, analysisUuid);
+    // Passiamo l'UUID all'esecutore
+    await this.analysisRunner.startAnalysis(String(analysisMethod), repoOwner, repoName, analysisUuid);
     
-    // Aggiorniamo lo stato a RUNNING
-    await newAnalysis.updateOne({ status: AnalysisStatus.RUNNING });
+    // NOTA: Non serve più fare l'update a RUNNING qui, il record lo è già.
     
   } catch (error) {
     this.logger.error(`Errore durante l'avvio dell'analisi: ${error.message}`);
-    await newAnalysis.updateOne({ 
+    
+    // Se fallisce l'avvio, riportiamo lo stato a FAILED
+    await this.analysisModel.findByIdAndUpdate(newAnalysis._id, { 
       status: AnalysisStatus.FAILED, 
       errorMessage: error.message 
     });
+    
     throw error;
   }
 
@@ -95,7 +96,6 @@ export class AnalysisService {
     message: `Analisi di ${repoOwner}/${repoName} avviata correttamente`
   };
 }
-
     private async findOrCreateRepository(
       repoOwner: string, 
       repoName: string, 
